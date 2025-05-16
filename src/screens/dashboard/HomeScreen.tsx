@@ -146,8 +146,14 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       const user_id = 'user_123'; // TODO: Replace with actual user ID
       const response = await axios.post(`http://localhost:8000/api/tasks/${user_id}/complete/${taskId}`);
       
-      // Update the task in the list
-      setTasks(tasks.map(t => t.task_id === taskId ? response.data.task : t));
+      // Update the task in the list with the new status
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.task_id === taskId 
+            ? { ...task, status: response.data.task.status }
+            : task
+        )
+      );
       
       // Update streak info from the response
       if (response.data.progress) {
@@ -162,7 +168,7 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       }
 
       // Refresh tasks to get updated completion status
-      fetchUserData();
+      await fetchUserData();
     } catch (error) {
       console.error('Error completing task:', error);
       setError('Failed to update task. Please try again.');
@@ -229,38 +235,59 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.date}>{formattedDate}</Text>
           </View>
           
-          {/* Daily streak card */}
+          {/* Progress Card with Streak */}
           <View style={[
-            styles.streakCard,
-            streakInfo.streak_status === 'increased' && styles.streakCardIncreased,
-            streakInfo.streak_status === 'decreased' && styles.streakCardDecreased,
-            streakInfo.streak_status === 'broken' && styles.streakCardBroken
+            styles.progressCard,
+            streakInfo.streak_status === 'increased' && styles.progressCardIncreased,
+            streakInfo.streak_status === 'decreased' && styles.progressCardDecreased,
+            streakInfo.streak_status === 'no_streak' && styles.progressCardNoStreak
           ]}>
-            <Text style={styles.streakTitle}>Your current streak</Text>
-            <View style={styles.streakInfo}>
-              <Text style={[
-                styles.streakCount,
-                streakInfo.streak_status === 'increased' && styles.streakCountIncreased,
-                streakInfo.streak_status === 'decreased' && styles.streakCountDecreased,
-                streakInfo.streak_status === 'broken' && styles.streakCountBroken
-              ]}>
-                {streakInfo.current_streak}
-              </Text>
-              <Text style={styles.streakLabel}>{streakInfo.current_streak === 1 ? "day" : "days"}</Text>
-            </View>
-            <Text style={styles.streakMessage}>{streakInfo.streak_message}</Text>
-            <View style={styles.streakProgress}>
-              <Text style={styles.streakProgressText}>
-                {streakInfo.today_completed} of {streakInfo.today_total} tasks completed today
-              </Text>
-              <View style={styles.streakProgressBar}>
-                <View 
-                  style={[
-                    styles.streakProgressFill,
-                    { width: `${(streakInfo.today_completed / streakInfo.today_total) * 100}%` }
-                  ]} 
-                />
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressTitle}>Today's Progress</Text>
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakBadgeText}>
+                  {streakInfo.current_streak} 🔥
+                </Text>
               </View>
+            </View>
+            
+            {/* Progress Section */}
+            <View style={styles.progressSection}>
+              <View style={styles.progressInfo}>
+                <View style={styles.progressCircle}>
+                  <Text style={styles.progressCount}>
+                    {streakInfo.today_completed}/3
+                  </Text>
+                </View>
+                <Text style={styles.progressLabel}>tasks completed</Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${(streakInfo.today_completed / 3) * 100}%` }
+                    ]} 
+                  />
+                </View>
+                <View style={styles.progressMarkers}>
+                  <View style={styles.progressMarker} />
+                  <View style={styles.progressMarker} />
+                  <View style={styles.progressMarker} />
+                </View>
+              </View>
+            </View>
+
+            {/* Status Message */}
+            <View style={styles.messageContainer}>
+              <Text style={styles.progressMessage}>
+                {streakInfo.streak_message}
+              </Text>
+              {streakInfo.longest_streak > 0 && (
+                <Text style={styles.longestStreak}>
+                  Best streak: {streakInfo.longest_streak} days
+                </Text>
+              )}
             </View>
           </View>
           
@@ -519,86 +546,130 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  streakCard: {
+  cardsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 15,
+  },
+  progressCard: {
     backgroundColor: 'white',
-    borderRadius: 15,
+    borderRadius: 20,
     padding: 20,
     margin: 20,
-    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  streakCardIncreased: {
-    backgroundColor: '#e8f5e9',
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  progressTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  streakBadge: {
+    backgroundColor: '#f0e6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  streakBadgeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6200ee',
+  },
+  progressSection: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  progressInfo: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  progressCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  progressCount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#6200ee',
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  progressBarContainer: {
+    width: '100%',
+    marginTop: 10,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6200ee',
+    borderRadius: 4,
+  },
+  progressMarkers: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  progressMarker: {
+    width: 2,
+    height: 6,
+    backgroundColor: '#ccc',
+    borderRadius: 1,
+  },
+  messageContainer: {
+    backgroundColor: '#f8f8f8',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  progressMessage: {
+    fontSize: 14,
+    color: '#444',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  longestStreak: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+  },
+  progressCardIncreased: {
+    backgroundColor: '#f1f8e9',
     borderColor: '#4CAF50',
     borderWidth: 2,
   },
-  streakCardDecreased: {
-    backgroundColor: '#fff3e0',
-    borderColor: '#FF9800',
+  progressCardDecreased: {
+    backgroundColor: '#fff8e1',
+    borderColor: '#FFA000',
     borderWidth: 2,
   },
-  streakCardBroken: {
-    backgroundColor: '#ffebee',
-    borderColor: '#F44336',
-    borderWidth: 2,
-  },
-  streakTitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 10,
-  },
-  streakInfo: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 10,
-  },
-  streakCount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  streakCountIncreased: {
-    color: '#2E7D32',
-  },
-  streakCountDecreased: {
-    color: '#F57C00',
-  },
-  streakCountBroken: {
-    color: '#D32F2F',
-  },
-  streakLabel: {
-    fontSize: 20,
-    color: '#666',
-    marginLeft: 5,
-  },
-  streakMessage: {
-    fontSize: 14,
-    color: '#888',
-  },
-  streakProgress: {
-    width: '100%',
-    marginTop: 15,
-  },
-  streakProgressText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-    textAlign: 'center',
-  },
-  streakProgressBar: {
-    height: 6,
-    backgroundColor: '#eee',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  streakProgressFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 3,
+  progressCardNoStreak: {
+    backgroundColor: '#fafafa',
   },
   sectionTitle: {
     fontSize: 20,
@@ -653,13 +724,6 @@ const styles = StyleSheet.create({
   taskProgress: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  progressBar: {
-    flex: 1,
-    height: 6,
-    backgroundColor: '#eee',
-    borderRadius: 3,
-    marginRight: 10,
   },
   progress: {
     height: '100%',

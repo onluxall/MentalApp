@@ -541,8 +541,8 @@ async def get_user_tasks(user_id: str, status: Optional[TaskStatus] = None):
     if status:
         tasks = [task for task in tasks if task.status == status]
     
-    # Update streak status
-    check_and_update_streak(user_id, progress)
+    # Update streak status (but not the streak count)
+    check_streak_status(user_id, progress)
     
     # Calculate completion percentage
     total_tasks = len(tasks)
@@ -567,10 +567,10 @@ async def get_user_tasks(user_id: str, status: Optional[TaskStatus] = None):
         }
     }
 
-def check_and_update_streak(user_id: str, progress: UserProgress) -> None:
+def check_streak_status(user_id: str, progress: UserProgress) -> None:
     """
-    Helper function to check task completion and update streak.
-    Resets streak to 0 each day, adds +1 if all tasks completed, -1 if not all completed.
+    Helper function to check task completion and update streak status messages.
+    Does not modify the streak count - that only happens in complete_task endpoint.
     
     Args:
         user_id (str): The ID of the user
@@ -588,7 +588,7 @@ def check_and_update_streak(user_id: str, progress: UserProgress) -> None:
     progress.today_total = len(today_tasks)
     progress.today_completed = sum(1 for task in today_tasks if task.status == TaskStatus.COMPLETED)
     
-    # If there are no tasks for today, don't update streak
+    # If there are no tasks for today, don't update status
     if not today_tasks:
         progress.streak_status = "no_streak"
         progress.streak_message = "No tasks for today"
@@ -607,17 +607,12 @@ def check_and_update_streak(user_id: str, progress: UserProgress) -> None:
     # Check if all tasks are completed
     all_completed = all(task.status == TaskStatus.COMPLETED for task in today_tasks)
     
+    # Only update status messages, not the streak count
     if all_completed:
-        # Add +1 to streak
-        progress.current_streak += 1
-        progress.longest_streak = max(progress.longest_streak, progress.current_streak)
         progress.streak_status = "increased"
         progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
-        progress.last_completion_date = today.isoformat()
     else:
-        # Subtract 1 from streak (but not below 0)
         if progress.current_streak > 0:
-            progress.current_streak -= 1
             progress.streak_status = "decreased"
             if progress.current_streak > 0:
                 progress.streak_message = f"Streak decreased to {progress.current_streak} days. Complete all tasks to increase it! 💪"
@@ -626,12 +621,6 @@ def check_and_update_streak(user_id: str, progress: UserProgress) -> None:
         else:
             progress.streak_status = "no_streak"
             progress.streak_message = "Complete all tasks today to start a streak!"
-        
-        # Update last completion date only if we had a streak
-        if progress.last_completion_date:
-            last_date = datetime.fromisoformat(progress.last_completion_date).date()
-            if (today - last_date) > timedelta(days=0):
-                progress.last_completion_date = None
 
 @app.get("/api/progress/{user_id}")
 async def get_user_progress(user_id: str):
@@ -678,8 +667,8 @@ async def get_user_progress(user_id: str):
     progress.today_total = len(today_tasks)
     progress.today_completed = sum(1 for task in today_tasks if task.status == TaskStatus.COMPLETED)
     
-    # Check and update streak based on current completion status
-    check_and_update_streak(user_id, progress)
+    # Check streak status (but not the streak count)
+    check_streak_status(user_id, progress)
     
     # Calculate completion percentage
     completion_percentage = (progress.today_completed / progress.today_total * 100) if progress.today_total > 0 else 0
@@ -718,61 +707,70 @@ async def complete_task(user_id: str, task_id: int):
     Returns:
         dict: Updated task and progress information with streak status
     """
-    if user_id not in user_tasks and user_id not in completed_tasks:
+    if user_id not in user_tasks:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # First check in active tasks
-    task = next((t for t in user_tasks.get(user_id, []) if t.task_id == task_id), None)
-    is_completing = True
-    
-    # If not found in active tasks, check in completed tasks
+    # Find the task in user's tasks
+    task = next((t for t in user_tasks[user_id] if t.task_id == task_id), None)
     if not task:
-        task = next((t for t in completed_tasks.get(user_id, []) if t.task_id == task_id), None)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        is_completing = False
+        raise HTTPException(status_code=404, detail="Task not found")
     
     # Initialize progress if needed
     if user_id not in user_progress:
         user_progress[user_id] = UserProgress(user_id=user_id)
     progress = user_progress[user_id]
     
-    if is_completing:
-        # Mark as completed
-        task.status = TaskStatus.COMPLETED
-        task.completed_at = datetime.now().isoformat()
-        
-        # Move to completed tasks
-        if user_id not in completed_tasks:
-            completed_tasks[user_id] = []
-        completed_tasks[user_id].append(task)
-        user_tasks[user_id].remove(task)
-        
-        # Update progress
-        progress.total_tasks_completed += 1
-        progress.categories_completed[task.category] = progress.categories_completed.get(task.category, 0) + 1
-    else:
+    # Store the previous completion state
+    was_completed = task.status == TaskStatus.COMPLETED
+    all_tasks_completed_before = all(t.status == TaskStatus.COMPLETED for t in user_tasks[user_id] 
+                                   if datetime.fromisoformat(t.created_at).date() == datetime.now().date())
+    
+    # Toggle task status
+    if was_completed:
         # Mark as pending
         task.status = TaskStatus.PENDING
         task.completed_at = None
-        
-        # Move back to active tasks
-        if user_id not in user_tasks:
-            user_tasks[user_id] = []
-        user_tasks[user_id].append(task)
-        completed_tasks[user_id].remove(task)
-        
         # Update progress
         progress.total_tasks_completed -= 1
         progress.categories_completed[task.category] = max(0, progress.categories_completed.get(task.category, 0) - 1)
+    else:
+        # Mark as completed
+        task.status = TaskStatus.COMPLETED
+        task.completed_at = datetime.now().isoformat()
+        # Update progress
+        progress.total_tasks_completed += 1
+        progress.categories_completed[task.category] = progress.categories_completed.get(task.category, 0) + 1
     
-    # Check and update streak based on all tasks completion
-    check_and_update_streak(user_id, progress)
+    # Get current completion state
+    all_tasks_completed_after = all(t.status == TaskStatus.COMPLETED for t in user_tasks[user_id] 
+                                  if datetime.fromisoformat(t.created_at).date() == datetime.now().date())
+    
+    # Only update streak if the overall completion state changed
+    if all_tasks_completed_before != all_tasks_completed_after:
+        if all_tasks_completed_after:
+            # All tasks just completed, increase streak by 1
+            progress.current_streak += 1
+            progress.longest_streak = max(progress.longest_streak, progress.current_streak)
+            progress.streak_status = "increased"
+            progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+            progress.last_completion_date = datetime.now().date().isoformat()
+        else:
+            # Tasks just became incomplete, decrease streak by 1
+            if progress.current_streak > 0:
+                progress.current_streak -= 1
+                progress.streak_status = "decreased"
+                if progress.current_streak > 0:
+                    progress.streak_message = f"Streak decreased to {progress.current_streak} days. Complete all tasks to increase it! 💪"
+                else:
+                    progress.streak_message = "Streak broken! Complete all tasks to start a new streak! 🎯"
+            else:
+                progress.streak_status = "no_streak"
+                progress.streak_message = "Complete all tasks today to start a streak!"
     
     return {
         "task": task,
         "progress": progress,
-        "streak_updated": progress.streak_status in ["maintaining", "new_streak"],
+        "streak_updated": progress.streak_status in ["increased", "decreased"],
         "streak_message": progress.streak_message
     }
 
