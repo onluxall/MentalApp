@@ -146,16 +146,7 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       const user_id = 'user_123'; // TODO: Replace with actual user ID
       const response = await axios.post(`http://localhost:8000/api/tasks/${user_id}/complete/${taskId}`);
       
-      // Update the task in the list with the new status
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.task_id === taskId 
-            ? { ...task, status: response.data.task.status }
-            : task
-        )
-      );
-      
-      // Update streak info from the response
+      // Update all states at once to prevent multiple re-renders
       if (response.data.progress) {
         setStreakInfo({
           current_streak: response.data.progress.current_streak,
@@ -167,8 +158,19 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       }
 
-      // Refresh tasks to get updated completion status
-      await fetchUserData();
+      // Update the task status
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.task_id === taskId 
+            ? { ...task, status: response.data.task.status }
+            : task
+        )
+      );
+
+      // Update completion status
+      if (response.data.completion_status) {
+        setCompletionStatus(response.data.completion_status);
+      }
     } catch (error) {
       console.error('Error completing task:', error);
       setError('Failed to update task. Please try again.');
