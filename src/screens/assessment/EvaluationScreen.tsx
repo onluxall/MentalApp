@@ -5,7 +5,8 @@ import { RouteProp } from '@react-navigation/native';
 import { assessmentApi, TaskRecommendation } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import Voice from '@react-native-voice/voice';
-import * as Speech from 'expo-speech';
+import * as Device from 'expo-device';
+import { Audio } from 'expo-av';
 
 //BACKEND TEAM: The evaluation screen needs:
 //- POST /api/assessment/{user_id}/struggle - To submit user's struggle description
@@ -53,15 +54,15 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isRecording, setIsRecording] = useState(false);
   
   const requestMicrophonePermission = async () => {
-    try {
-      if (Platform.OS !== 'web') {
-        const isAvailable = await Voice.isAvailable();
-        if (!isAvailable) {
-          alert('Voice recognition is not available on this device');
+    if (Device.isDevice && Platform.OS !== 'web') {
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          alert('Sorry, we need microphone permissions to make this work!');
         }
+      } catch (error) {
+        console.log('Error requesting microphone permission:', error);
       }
-    } catch (error) {
-      console.log('Error initializing voice recognition:', error);
     }
   };
 
