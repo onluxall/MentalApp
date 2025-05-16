@@ -1,18 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { assessmentApi, TaskRecommendation } from '../../services/api';
+import { Ionicons } from '@expo/vector-icons';
+import Voice from '@react-native-voice/voice';
+import * as Speech from 'expo-speech';
 
 //BACKEND TEAM: The evaluation screen needs:
 //- POST /api/assessment/{user_id}/struggle - To submit user's struggle description
+//   Request body: { description: string }
+//   Response: { recommendations: TaskRecommendation[] }
+//
 //- Algorithm to analyze assessment responses and identify weakest areas
-//- Ability to generate personalized task recommendations
-//- Mapping between question categories and task categories
+//   This should take the numerical scores from the assessment questions and 
+//   determine which categories need the most improvement
+//
+//- Natural Language Processing for analyzing user's text input:
+//   The userStruggleText field contains the user's own description of their challenges.
+//   This should be processed using NLP to extract keywords, sentiment, and specific concerns
+//   that can help personalize the task recommendations
+//
+//- Mapping between question categories and task categories:
+//   Each question is associated with a category (habits, emotions, etc.)
+//   The backend should map low scores in these categories to appropriate tasks
+//
+//- AI-driven personalization:
+//   Combine the assessment scores with the text analysis to generate
+//   truly personalized task recommendations that address both detected
+//   issues and explicitly stated concerns
 
 type RootStackParamList = {
   Evaluation: { answers: { [key: number]: number } };
-  TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[] };
+  TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[], userStruggleText?: string };
 };
 
 type EvaluationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Evaluation'>;
@@ -29,6 +49,50 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<TaskRecommendation[]>([]);
+  const [userStruggleText, setUserStruggleText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  
+  const requestMicrophonePermission = async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const isAvailable = await Voice.isAvailable();
+        if (!isAvailable) {
+          alert('Voice recognition is not available on this device');
+        }
+      }
+    } catch (error) {
+      console.log('Error initializing voice recognition:', error);
+    }
+  };
+
+  useEffect(() => {
+    requestMicrophonePermission();
+
+    //Set up voice recognition
+    Voice.onSpeechStart = () => {
+      console.log('Speech started');
+    };
+    
+    Voice.onSpeechEnd = () => {
+      console.log('Speech ended');
+    };
+    
+    Voice.onSpeechResults = (e) => {
+      if (e?.value && e.value.length > 0) {
+        const result = e.value[0] || '';
+        setUserStruggleText(prev => prev + " " + result);
+      }
+    };
+    
+    Voice.onSpeechError = (e) => {
+      console.error('Speech recognition error:', e);
+      setIsRecording(false);
+    };
+    
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
   
   const categories = [
     'habits',
@@ -80,15 +144,18 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const motivationState = getMotivationState();
   
   useEffect(() => {
+    //When the screen loads, we try to get task recommendations if we're in connected mode
     const fetchRecommendations = async () => {
       try {
         setLoading(true);
         const user_id = 'user_123';
+        //This is a placeholder - in a real app we might ask the user for this
         const struggleDescription = "I'm having trouble staying consistent with my routines";
         
         const response = await assessmentApi.submitStruggleDescription(user_id, struggleDescription);
         setRecommendations(response.recommendations);
         
+        //here we set selected categories based on recommendations
         const recommendedCategories = [...new Set(response.recommendations.map(rec => rec.category))];
         if (recommendedCategories.length > 0) {
           setSelectedCategories(recommendedCategories.slice(0, 3));
@@ -106,6 +173,7 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
     fetchRecommendations();
   }, []);
   
+  //Fallback method to get recommended categories from scores (offline mode)
   const setRecommendedCategoriesFromScores = () => {
     const categoryMap: { [key: number]: string } = {
       1: "habits",
@@ -138,6 +206,69 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
       setSelectedCategories([...selectedCategories, category]);
     }
   };
+
+  const handleVoiceInput = async () => {
+    try {
+      if (isRecording) {
+        await Voice.stop();
+        setIsRecording(false);
+      } else {
+        await Voice.start('en-US');
+        setIsRecording(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  //UPDATED: Modified to include the struggle text
+  const handleContinue = () => {
+  // If the user has entered struggle text and we have a connection to the backend
+  if (userStruggleText.trim() !== '') {
+    //here we would normally call this API, but for now we can comment it out
+    //to avoid errors if the backend isn't implemented yet
+    /*
+    try {
+      const user_id = 'user_123'; //In a real app, get this from authentication
+      assessmentApi.submitStruggleDescription(user_id, userStruggleText)
+        .then(response => {
+          //If successful, use the recommendations
+          setRecommendations(response.recommendations);
+          //Then navigate
+          navigation.navigate('TaskSelection', { 
+            selectedCategories,
+            recommendations: response.recommendations,
+            userStruggleText
+          });
+        })
+        .catch(error => {
+          console.error('Error submitting struggle text:', error);
+          //On error, still navigate but with existing recommendations
+          navigation.navigate('TaskSelection', { 
+            selectedCategories,
+            recommendations,
+            userStruggleText
+          });
+        });
+    } catch (error) {
+      console.error('Error in API call:', error);
+      //Fall back to regular navigation
+      navigation.navigate('TaskSelection', { 
+        selectedCategories,
+        recommendations,
+        userStruggleText
+      });
+    }
+    */
+  }
+  
+  //For now, just navigate with the current data
+  navigation.navigate('TaskSelection', { 
+    selectedCategories,
+    recommendations,
+    userStruggleText
+  });
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -202,13 +333,44 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
               </TouchableOpacity>
             ))}
           </View>
+
+          <View style={styles.textInputSection}>
+            <Text style={styles.sectionTitle}>Tell Us More (Optional)</Text>
+            <Text style={styles.sectionSubtitle}>
+              Describe any specific challenges or goals in your own words
+            </Text>
+            
+            <View style={styles.textInputContainer}>
+              <TextInput
+                style={styles.textInput}
+                multiline
+                numberOfLines={4}
+                placeholder="For example: I struggle with procrastination and want to be more productive in the mornings..."
+                value={userStruggleText}
+                onChangeText={setUserStruggleText}
+              />
+              
+              {Platform.OS !== 'web' && (
+                <TouchableOpacity
+                  style={[
+                    styles.micButton,
+                    isRecording && styles.micButtonRecording
+                  ]}
+                  onPress={handleVoiceInput}
+                >
+                  <Ionicons 
+                    name={isRecording ? "mic" : "mic-outline"} 
+                    size={24} 
+                    color={isRecording ? "#FFFFFF" : "#6200ee"} 
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           
           <TouchableOpacity 
             style={styles.button}
-            onPress={() => navigation.navigate('TaskSelection', { 
-              selectedCategories,
-              recommendations
-            })}
+            onPress={handleContinue}
           >
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
@@ -338,6 +500,40 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+  },
+  textInputSection: {
+    marginTop: 30,
+    marginBottom: 20,
+  },
+  textInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: 10,
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    textAlignVertical: 'top',
+  },
+  micButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+    borderWidth: 1,
+    borderColor: '#6200ee',
+  },
+  micButtonRecording: {
+    backgroundColor: '#6200ee',
   },
 });
 

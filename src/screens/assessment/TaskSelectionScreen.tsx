@@ -6,7 +6,7 @@ import { TaskRecommendation } from '../../services/api';
 
 
 type RootStackParamList = {
-  TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[] };
+  TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[], userStruggleText?: string };
   Home: { selectedTasks: number[] };
 };
 
@@ -749,8 +749,20 @@ const FALLBACK_TASKS = [
 ];
 
 const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { selectedCategories, recommendations = [] } = route.params || { selectedCategories: ['habits'], recommendations: [] };
+  const { selectedCategories, recommendations = [], userStruggleText = "" } = route.params || { selectedCategories: ['habits'], recommendations: [], userStruggleText: "" };
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
+  // BACKEND TEAM: I've added the ability for users to provide a free-text description
+  //of their struggles or goals. This text should be processed by the AI along with 
+  //the assessment answers to generate more personalized task recommendations.
+  //
+  //Expected API endpoint:
+  //POST /api/assessment/{user_id}/struggle
+  //Request body: { description: string }
+  //Response: { recommendations: TaskRecommendation[] }
+  //
+  //For now, we're simulating this with predefined tasks, but 
+  //but this would use NLP to analyze the text
+  //and generate truly personalized recommendations.
   
   //BACKEND TEAM: The app prefers to use backend-provided recommendations but falls back to local data if needed
   const allTasks = recommendations.length > 0 
