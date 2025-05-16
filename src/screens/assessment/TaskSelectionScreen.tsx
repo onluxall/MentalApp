@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { TaskRecommendation } from '../../services/api';
+import axios from 'axios';
 
 
 type RootStackParamList = {
   TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[], userStruggleText?: string };
-  Home: { selectedTasks: number[] };
+  Home: { selectedTasks: number[], progress: number };
 };
 
 type TaskSelectionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TaskSelection'>;
@@ -751,6 +752,9 @@ const FALLBACK_TASKS = [
 const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCategories, recommendations = [], userStruggleText = "" } = route.params || { selectedCategories: ['habits'], recommendations: [], userStruggleText: "" };
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // BACKEND TEAM: I've added the ability for users to provide a free-text description
   //of their struggles or goals. This text should be processed by the AI along with 
   //the assessment answers to generate more personalized task recommendations.
@@ -783,6 +787,50 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  const handleStartJourney = async () => {
+    if (selectedTasks.length === 0) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Get the full task details for selected tasks
+      const selectedTaskDetails = filteredTasks.filter(task => 
+        selectedTasks.includes(task.task_id)
+      );
+
+      // Save selected tasks to backend
+      const user_id = 'user_123'; // In a real app, get this from authentication
+      const response = await axios.post(
+        'http://localhost:8000/api/tasks/user_123/select',
+        {
+          user_id,
+          task_ids: selectedTasks,
+          selected_date: new Date().toISOString().split('T')[0],
+          task_details: selectedTaskDetails.map(task => ({
+            task_id: task.task_id,
+            title: task.title,
+            description: task.description,
+            category: task.category,
+            difficulty: task.difficulty,
+            estimated_duration: task.estimated_duration
+          }))
+        }
+      );
+
+      // Navigate to Home screen with the selected tasks
+      navigation.navigate('Home', { 
+        selectedTasks,
+        progress: response.data.progress // Pass progress from backend
+      });
+    } catch (err) {
+      console.error('Error saving selected tasks:', err);
+      setError('Failed to save your selected tasks. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   //here is header component that displays title and selection count
   const HeaderComponent = () => (
     <View>
@@ -795,6 +843,12 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
   //and here is footer component with navigation button and empty state handling
   const FooterComponent = () => (
     <>
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+      
       {filteredTasks.length === 0 && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No tasks available for the selected categories.</Text>
@@ -807,19 +861,19 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       )}
       
-      {/*BACKEND TEAM: When the user clicks this button, the selected task IDs are passed to the Home screen.
-          The backend should provide an endpoint to save these selections for the user:
-          - POST /api/tasks/select - To save selected tasks to the user profile
-          This could be called either here or in the Home screen initialization. */}
       <TouchableOpacity 
         style={[
           styles.button,
-          selectedTasks.length === 0 && styles.buttonDisabled
+          (selectedTasks.length === 0 || isSaving) && styles.buttonDisabled
         ]}
-        disabled={selectedTasks.length === 0}
-        onPress={() => navigation.navigate('Home', { selectedTasks })}
+        disabled={selectedTasks.length === 0 || isSaving}
+        onPress={handleStartJourney}
       >
-        <Text style={styles.buttonText}>Start Your Journey</Text>
+        {isSaving ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.buttonText}>Start Your Journey</Text>
+        )}
       </TouchableOpacity>
     </>
   );
@@ -1027,6 +1081,17 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#6200ee',
     fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  errorText: {
+    color: '#c62828',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 

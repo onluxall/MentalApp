@@ -24,41 +24,6 @@ type Props = {
   route: HomeScreenRouteProp;
 };
 
-//Temporary task data
-//BACKEND TEAM: Replace this with API data
-const TASK_DETAILS: { [key: number]: any } = {
-  1: {
-    title: "Morning Routine Builder",
-    description: "Create a consistent morning routine to start your day with purpose.",
-    icon: "☀️",
-    category: "habits"
-  },
-  2: {
-    title: "Evening Wind Down",
-    description: "Develop an evening routine to improve sleep and prepare for tomorrow.",
-    icon: "🌙",
-    category: "habits"
-  },
-  3: {
-    title: "Emotion Journaling",
-    description: "Write down three emotions you felt today and their triggers.",
-    icon: "📝",
-    category: "emotions"
-  },
-  4: {
-    title: "Mindfulness Practice",
-    description: "Practice 5 minutes of mindful breathing.",
-    icon: "🧘",
-    category: "emotions"
-  },
-  5: {
-    title: "Task Batching",
-    description: "Group similar tasks together for better efficiency.",
-    icon: "📊",
-    category: "productivity"
-  }
-};
-
 //List of motivational quotes. we can expand it
 const QUOTES = [
   {
@@ -86,10 +51,47 @@ type DailyNote = {
   mood?: string;
 };
 
+type StreakInfo = {
+  current_streak: number;
+  longest_streak: number;
+  streak_status: string;
+  streak_message: string;
+  today_completed: number;
+  today_total: number;
+};
+
+type CompletionStatus = {
+  total_tasks: number;
+  completed_tasks: number;
+  completion_percentage: number;
+  all_completed: boolean;
+};
+
+type TaskResponse = {
+  tasks: any[];
+  streak_info: StreakInfo;
+  completion_status: CompletionStatus;
+};
+
 const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedTasks = [1, 3, 5] } = route.params || {}; //Default tasks if none provided
-  const [completedTasks, setCompletedTasks] = useState<number[]>([]);
-  const [currentStreak, setCurrentStreak] = useState(1);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [streakInfo, setStreakInfo] = useState<StreakInfo>({
+    current_streak: 0,
+    longest_streak: 0,
+    streak_status: 'no_streak',
+    streak_message: 'Complete all tasks today to start a streak!',
+    today_completed: 0,
+    today_total: 0
+  });
+  const [completionStatus, setCompletionStatus] = useState<CompletionStatus>({
+    total_tasks: 0,
+    completed_tasks: 0,
+    completion_percentage: 0,
+    all_completed: false
+  });
   const [dailyNote, setDailyNote] = useState<string>('');
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [randomNote, setRandomNote] = useState<DailyNote | null>(null);
@@ -98,23 +100,30 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   
-  //BACKEND TEAM: Implement actual logic to fetch user streak and completed tasks
+  // Fetch tasks and progress on component mount
   useEffect(() => {
-    //Simulating data fetch from backend
-    //In a real app, you would fetch this data from the backend API
-    const fetchUserData = async () => {
-      try {
-        //Mock data
-        setCurrentStreak(1);
-        setCompletedTasks([]);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
-    
     fetchUserData();
   }, []);
-  
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      const user_id = 'user_123'; // TODO: Replace with actual user ID
+
+      // Fetch tasks and streak info
+      const tasksResponse = await axios.get<TaskResponse>(`http://localhost:8000/api/tasks/${user_id}`);
+      setTasks(tasksResponse.data.tasks);
+      setStreakInfo(tasksResponse.data.streak_info);
+      setCompletionStatus(tasksResponse.data.completion_status);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to load tasks. Please try again.');
+      setLoading(false);
+    }
+  };
+
   //get today's date
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
@@ -131,15 +140,32 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   //random quote
   const randomQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   
-  //here we have to handle task completion
-  const toggleTaskCompletion = (taskId: number) => {
-    if (completedTasks.includes(taskId)) {
-      setCompletedTasks(completedTasks.filter(id => id !== taskId));
-    } else {
-      setCompletedTasks([...completedTasks, taskId]);
+  // Handle task completion
+  const toggleTaskCompletion = async (taskId: number) => {
+    try {
+      const user_id = 'user_123'; // TODO: Replace with actual user ID
+      const response = await axios.post(`http://localhost:8000/api/tasks/${user_id}/complete/${taskId}`);
       
-      //BACKEND TEAM: Add API call to mark task as completed
-      //Example: api.markTaskCompleted(taskId);
+      // Update the task in the list
+      setTasks(tasks.map(t => t.task_id === taskId ? response.data.task : t));
+      
+      // Update streak info from the response
+      if (response.data.progress) {
+        setStreakInfo({
+          current_streak: response.data.progress.current_streak,
+          longest_streak: response.data.progress.longest_streak,
+          streak_status: response.data.progress.streak_status,
+          streak_message: response.data.progress.streak_message,
+          today_completed: response.data.progress.today_completed,
+          today_total: response.data.progress.today_total
+        });
+      }
+
+      // Refresh tasks to get updated completion status
+      fetchUserData();
+    } catch (error) {
+      console.error('Error completing task:', error);
+      setError('Failed to update task. Please try again.');
     }
   };
 
@@ -203,62 +229,107 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.date}>{formattedDate}</Text>
           </View>
           
-          {/*Daily streak card*/}
-          <View style={styles.streakCard}>
+          {/* Daily streak card */}
+          <View style={[
+            styles.streakCard,
+            streakInfo.streak_status === 'increased' && styles.streakCardIncreased,
+            streakInfo.streak_status === 'decreased' && styles.streakCardDecreased,
+            streakInfo.streak_status === 'broken' && styles.streakCardBroken
+          ]}>
             <Text style={styles.streakTitle}>Your current streak</Text>
             <View style={styles.streakInfo}>
-              <Text style={styles.streakCount}>{currentStreak}</Text>
-              <Text style={styles.streakLabel}>{currentStreak === 1 ? "day" : "days"}</Text>
+              <Text style={[
+                styles.streakCount,
+                streakInfo.streak_status === 'increased' && styles.streakCountIncreased,
+                streakInfo.streak_status === 'decreased' && styles.streakCountDecreased,
+                streakInfo.streak_status === 'broken' && styles.streakCountBroken
+              ]}>
+                {streakInfo.current_streak}
+              </Text>
+              <Text style={styles.streakLabel}>{streakInfo.current_streak === 1 ? "day" : "days"}</Text>
             </View>
-            <Text style={styles.streakMessage}>Let's keep building your motivation!</Text>
+            <Text style={styles.streakMessage}>{streakInfo.streak_message}</Text>
+            <View style={styles.streakProgress}>
+              <Text style={styles.streakProgressText}>
+                {streakInfo.today_completed} of {streakInfo.today_total} tasks completed today
+              </Text>
+              <View style={styles.streakProgressBar}>
+                <View 
+                  style={[
+                    styles.streakProgressFill,
+                    { width: `${(streakInfo.today_completed / streakInfo.today_total) * 100}%` }
+                  ]} 
+                />
+              </View>
+            </View>
           </View>
           
           <Text style={styles.sectionTitle}>Today's Tasks</Text>
           
-          {selectedTasks.length > 0 ? (
-            selectedTasks.map((taskId) => {
-              const task = TASK_DETAILS[taskId];
-              if (!task) return null;
-              
-              const isCompleted = completedTasks.includes(taskId);
-              
-              return (
-                <TouchableOpacity 
-                  key={taskId} 
-                  style={[styles.taskCard, isCompleted && styles.taskCardCompleted]}
-                  onPress={() => toggleTaskCompletion(taskId)}
-                >
-                  <View style={styles.taskIconContainer}>
-                    <Text style={styles.taskIcon}>{task.icon}</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#6200ee" />
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={fetchUserData}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : tasks.length > 0 ? (
+            tasks.map((task) => (
+              <TouchableOpacity 
+                key={task.task_id} 
+                style={[
+                  styles.taskCard,
+                  task.status === 'completed' && styles.taskCardCompleted
+                ]}
+                onPress={() => toggleTaskCompletion(task.task_id)}
+              >
+                <View style={styles.taskIconContainer}>
+                  <Text style={styles.taskIcon}>
+                    {task.category === 'habits' ? '🔄' : 
+                     task.category === 'emotions' ? '😌' : 
+                     task.category === 'productivity' ? '⏱️' : 
+                     task.category === 'discipline' ? '🎯' : 
+                     task.category === 'mindset' ? '🧠' : '📝'}
+                  </Text>
+                </View>
+                <View style={styles.taskContent}>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                  <Text style={styles.taskDescription}>{task.description}</Text>
+                  <View style={styles.taskMeta}>
+                    <Text style={styles.taskDifficulty}>Difficulty: {task.difficulty}</Text>
+                    <Text style={styles.taskDuration}>Duration: {task.estimated_duration}</Text>
                   </View>
-                  <View style={styles.taskContent}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <Text style={styles.taskDescription}>{task.description}</Text>
-                    <View style={styles.taskProgress}>
-                      <View style={styles.progressBar}>
-                        <View 
-                          style={[
-                            styles.progress, 
-                            { width: isCompleted ? '100%' : '0%' }
-                          ]} 
-                        />
-                      </View>
-                      <Text style={styles.taskStatus}>
-                        {isCompleted ? 'Completed' : 'Not started'}
-                      </Text>
+                  <View style={styles.taskProgress}>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progress, 
+                          { width: task.status === 'completed' ? '100%' : '0%' }
+                        ]} 
+                      />
                     </View>
+                    <Text style={styles.taskStatus}>
+                      {task.status === 'completed' ? 'Completed' : 'Not started'}
+                    </Text>
                   </View>
-                </TouchableOpacity>
-              );
-            })
+                </View>
+              </TouchableOpacity>
+            ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No tasks selected for today.</Text>
+              <Text style={styles.emptyStateText}>No tasks for today.</Text>
               <TouchableOpacity 
                 style={styles.button}
                 onPress={() => navigation.navigate('Login')}
               >
-                <Text style={styles.buttonText}>Start Over</Text>
+                <Text style={styles.buttonText}>Start Assessment</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -460,6 +531,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  streakCardIncreased: {
+    backgroundColor: '#e8f5e9',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  streakCardDecreased: {
+    backgroundColor: '#fff3e0',
+    borderColor: '#FF9800',
+    borderWidth: 2,
+  },
+  streakCardBroken: {
+    backgroundColor: '#ffebee',
+    borderColor: '#F44336',
+    borderWidth: 2,
+  },
   streakTitle: {
     fontSize: 16,
     color: '#666',
@@ -475,6 +561,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#4CAF50',
   },
+  streakCountIncreased: {
+    color: '#2E7D32',
+  },
+  streakCountDecreased: {
+    color: '#F57C00',
+  },
+  streakCountBroken: {
+    color: '#D32F2F',
+  },
   streakLabel: {
     fontSize: 20,
     color: '#666',
@@ -483,6 +578,27 @@ const styles = StyleSheet.create({
   streakMessage: {
     fontSize: 14,
     color: '#888',
+  },
+  streakProgress: {
+    width: '100%',
+    marginTop: 15,
+  },
+  streakProgressText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+    textAlign: 'center',
+  },
+  streakProgressBar: {
+    height: 6,
+    backgroundColor: '#eee',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  streakProgressFill: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 3,
   },
   sectionTitle: {
     fontSize: 20,
@@ -783,6 +899,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 15,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#6200ee',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  taskDifficulty: {
+    fontSize: 12,
+    color: '#888',
+  },
+  taskDuration: {
+    fontSize: 12,
+    color: '#888',
   },
 });
 
