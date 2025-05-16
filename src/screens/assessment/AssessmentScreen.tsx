@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import MoodSlider from '../../components/assessment/MoodSlider';
+import { assessmentApi, AssessmentQuestion, AssessmentResponse } from '../../services/api';
 
 type RootStackParamList = {
   Assessment: undefined;
@@ -14,54 +15,191 @@ type Props = {
   navigation: AssessmentScreenNavigationProp;
 };
 
-interface Question {
-  id: number;
-  category: string;
-  question: string;
-}
+// Fallback questions in case backend is not available
+const FALLBACK_QUESTIONS: AssessmentQuestion[] = [
+  {
+    id: 1,
+    category: "habits",
+    question: "How consistent are you with your daily routines and habits?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 2,
+    category: "emotions",
+    question: "How well do you manage your emotions during challenging situations?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 3,
+    category: "productivity",
+    question: "How effectively do you complete tasks within your planned timeframe?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 4,
+    category: "discipline",
+    question: "How well do you maintain focus and resist distractions?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 5,
+    category: "goal_setting",
+    question: "How clear and achievable are your current goals?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 6,
+    category: "time_management",
+    question: "How well do you prioritize and manage your time?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 7,
+    category: "mindset",
+    question: "How positive and growth-oriented is your mindset?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 8,
+    category: "environment",
+    question: "How conducive is your environment to maintaining focus and motivation?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 9,
+    category: "physical_health",
+    question: "How well do you maintain your physical health and energy levels?",
+    min_value: 0,
+    max_value: 10
+  },
+  {
+    id: 10,
+    category: "social_influences",
+    question: "How supportive is your social circle in your personal development?",
+    min_value: 0,
+    max_value: 10
+  }
+];
 
 const AssessmentScreen: React.FC<Props> = ({ navigation }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<{ [key: number]: number }>({});
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   
-  const questions: Question[] = [
-    { id: 1, category: "Routine", question: "How consistent are you with your daily routine?" },
-    { id: 2, category: "Sleep", question: "How well do you maintain a consistent sleep schedule?" },
-    { id: 3, category: "Fitness", question: "How consistent are you with physical exercise?" },
-    { id: 4, category: "Nutrition", question: "How often do you eat nutritious meals?" },
-    { id: 5, category: "Focus", question: "How often do you get distracted from tasks?" },
-    { id: 6, category: "Planning", question: "How consistently do you plan your day or week?" },
-    { id: 7, category: "Procrastination", question: "How often do you procrastinate important tasks?" },
-    { id: 8, category: "Energy", question: "How often do you feel energized to work on your goals?" },
-    { id: 9, category: "Mindset", question: "How often do you feel positive and resilient?" },
-    { id: 10, category: "Discipline", question: "How disciplined do you feel on an average day?" }
-  ];
+  useEffect(() => {
+    loadQuestions();
+  }, []);
+
+  const loadQuestions = async () => {
+    try {
+      const fetchedQuestions = await assessmentApi.getQuestions();
+      setQuestions(fetchedQuestions);
+      setLoading(false);
+      setUsingFallback(false);
+    } catch (err) {
+      console.log('Using fallback questions due to backend connection issue:', err);
+      setQuestions(FALLBACK_QUESTIONS);
+      setLoading(false);
+      setUsingFallback(true);
+      setError('Connected to offline mode. Some features may be limited.');
+    }
+  };
   
   const currentQuestion = questions[currentQuestionIndex];
   
-  const currentAnswer = answers[currentQuestion.id] !== undefined 
+  const currentAnswer = answers[currentQuestion?.id] !== undefined 
     ? answers[currentQuestion.id] 
-    : 3;
+    : 5;
   
   const handleSliderChange = (value: number) => {
-    setAnswers({
-      ...answers,
-      [currentQuestion.id]: value
-    });
+    if (currentQuestion) {
+      setAnswers({
+        ...answers,
+        [currentQuestion.id]: value
+      });
+    }
   };
   
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
+      // Convert answers to API format
+      const responses: AssessmentResponse[] = Object.entries(answers).map(([questionId, rating]) => ({
+        question_id: parseInt(questionId),
+        rating
+      }));
+
+      if (!usingFallback) {
+        try {
+          // Submit assessment to backend
+          await assessmentApi.submitAssessment({
+            user_id: 'user_123', // TODO: Replace with actual user ID
+            responses,
+            timestamp: new Date().toISOString()
+          });
+        } catch (err) {
+          console.log('Failed to submit to backend:', err);
+          // Continue with navigation even if submission fails
+        }
+      }
+      
+      // Navigate to evaluation screen regardless of backend status
       navigation.navigate('Evaluation', { answers });
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <ActivityIndicator size="large" color="#6200ee" />
+          <Text style={styles.loadingText}>Loading questions...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={loadQuestions}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!currentQuestion) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.title}>Motivation Assessment</Text>
+        {usingFallback && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>Offline Mode</Text>
+          </View>
+        )}
         <View style={styles.categoryContainer}>
           <Text style={styles.categoryText}>{currentQuestion.category}</Text>
         </View>
@@ -163,6 +301,31 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  offlineBanner: {
+    backgroundColor: '#FFF3CD',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FFE69C',
+  },
+  offlineText: {
+    color: '#856404',
+    textAlign: 'center',
+    fontSize: 14,
   },
 });
 
