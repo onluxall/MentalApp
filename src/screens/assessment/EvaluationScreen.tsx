@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { assessmentApi, TaskRecommendation } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
-import Voice from '@react-native-voice/voice';
+import * as Speech from 'expo-speech';
 import * as Device from 'expo-device';
 import { Audio } from 'expo-av';
 
@@ -44,6 +44,12 @@ type Props = {
   route: EvaluationScreenRouteProp;
 };
 
+interface RecordingStatus {
+  isRecording: boolean;
+  durationMillis: number;
+  uri?: string;
+}
+
 const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const { answers } = route.params || { answers: {} };
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['habits']);
@@ -51,47 +57,85 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<TaskRecommendation[]>([]);
   const [userStruggleText, setUserStruggleText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>({
+    isRecording: false,
+    durationMillis: 0,
+  });
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcription, setTranscription] = useState('');
   
   const requestMicrophonePermission = async () => {
-    if (Device.isDevice && Platform.OS !== 'web') {
-      try {
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-          alert('Sorry, we need microphone permissions to make this work!');
-        }
-      } catch (error) {
-        console.log('Error requesting microphone permission:', error);
+    try {
+      // First check if we already have permission
+      const { status: existingStatus } = await Audio.getPermissionsAsync();
+      
+      if (existingStatus === 'granted') {
+        setHasPermission(true);
+        return true;
       }
+      
+      // If we don't have permission, request it
+      const { status } = await Audio.requestPermissionsAsync();
+      const granted = status === 'granted';
+      setHasPermission(granted);
+      
+      if (!granted) {
+        // If permission was denied, show a more informative message
+        Alert.alert(
+          'Microphone Access Required',
+          'MindFlow needs microphone access to record your voice input. Please enable it in your device settings to use this feature.',
+          [
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+      }
+      
+      return granted;
+    } catch (error) {
+      console.error('Error requesting microphone permission:', error);
+      setHasPermission(false);
+      return false;
     }
   };
 
   useEffect(() => {
+    // Request permission as soon as the component mounts
     requestMicrophonePermission();
-
-    //Set up voice recognition
-    Voice.onSpeechStart = () => {
-      console.log('Speech started');
-    };
     
-    Voice.onSpeechEnd = () => {
-      console.log('Speech ended');
-    };
-    
-    Voice.onSpeechResults = (e) => {
-      if (e?.value && e.value.length > 0) {
-        const result = e.value[0] || '';
-        setUserStruggleText(prev => prev + " " + result);
+    // Set up audio mode
+    const setupAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+      } catch (error) {
+        console.error('Error setting up audio:', error);
       }
     };
-    
-    Voice.onSpeechError = (e) => {
-      console.error('Speech recognition error:', e);
-      setIsRecording(false);
-    };
-    
+
+    setupAudio();
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
+      if (recording) {
+        recording.stopAndUnloadAsync();
+      }
     };
   }, []);
   
@@ -208,18 +252,106 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      setIsProcessing(true);
+      
+      // Check permission
+      if (!hasPermission) {
+        const granted = await requestMicrophonePermission();
+        if (!granted) return;
+      }
+
+      // Start recording
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      setRecording(newRecording);
+      setRecordingStatus({
+        isRecording: true,
+        durationMillis: 0,
+      });
+
+      // Start status updates
+      newRecording.setOnRecordingStatusUpdate((status) => {
+        setRecordingStatus({
+          isRecording: status.isRecording,
+          durationMillis: status.durationMillis || 0,
+        });
+      });
+
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      setRecordingStatus({ isRecording: false, durationMillis: 0 });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      setIsProcessing(true);
+      
+      if (!recording) return;
+
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      
+      if (uri) {
+        // Here you would typically send the audio file to a speech-to-text service
+        // For example: Google Cloud Speech-to-Text, AWS Transcribe, etc.
+        console.log('Recording saved to:', uri);
+        
+        // For now, we'll show a placeholder message
+        Alert.alert(
+          'Recording Saved',
+          'In a full implementation, this recording would be converted to text using a speech-to-text service.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // You could implement the speech-to-text conversion here
+                // For example:
+                // const text = await convertSpeechToText(uri);
+                // setUserStruggleText(prev => prev + " " + text);
+              }
+            }
+          ]
+        );
+      }
+
+      setRecording(null);
+      setRecordingStatus({ isRecording: false, durationMillis: 0 });
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      Alert.alert('Error', 'Failed to stop recording.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleVoiceInput = async () => {
     try {
-      if (isRecording) {
-        await Voice.stop();
-        setIsRecording(false);
+      if (recordingStatus.isRecording) {
+        await stopRecording();
       } else {
-        await Voice.start('en-US');
-        setIsRecording(true);
+        await startRecording();
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error handling voice input:', e);
+      Alert.alert('Error', 'Error with voice input. Please try again or use text input.');
+      setRecordingStatus({ isRecording: false, durationMillis: 0 });
+      setIsProcessing(false);
     }
+  };
+
+  const formatDuration = (millis: number) => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   //UPDATED: Modified to include the struggle text
@@ -355,18 +487,40 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={[
                     styles.micButton,
-                    isRecording && styles.micButtonRecording
+                    recordingStatus.isRecording && styles.micButtonRecording,
+                    !hasPermission && styles.micButtonDisabled,
+                    isProcessing && styles.micButtonProcessing
                   ]}
                   onPress={handleVoiceInput}
+                  disabled={!hasPermission || isProcessing}
                 >
-                  <Ionicons 
-                    name={isRecording ? "mic" : "mic-outline"} 
-                    size={24} 
-                    color={isRecording ? "#FFFFFF" : "#6200ee"} 
-                  />
+                  {isProcessing ? (
+                    <ActivityIndicator color={recordingStatus.isRecording ? "#FFFFFF" : "#6200ee"} />
+                  ) : (
+                    <Ionicons 
+                      name={recordingStatus.isRecording ? "stop-circle" : "mic-outline"} 
+                      size={24} 
+                      color={recordingStatus.isRecording ? "#FFFFFF" : (!hasPermission ? "#999999" : "#6200ee")} 
+                    />
+                  )}
                 </TouchableOpacity>
               )}
             </View>
+            {recordingStatus.isRecording && (
+              <View style={styles.recordingContainer}>
+                <Text style={styles.recordingText}>
+                  Recording... {formatDuration(recordingStatus.durationMillis)}
+                </Text>
+                <Text style={styles.recordingHint}>
+                  Tap the button to stop recording
+                </Text>
+              </View>
+            )}
+            {hasPermission === false && (
+              <Text style={styles.permissionText}>
+                Microphone access is required for voice input. Tap the microphone icon to enable it.
+              </Text>
+            )}
           </View>
           
           <TouchableOpacity 
@@ -535,6 +689,40 @@ const styles = StyleSheet.create({
   },
   micButtonRecording: {
     backgroundColor: '#6200ee',
+  },
+  micButtonDisabled: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#999999',
+    opacity: 0.7,
+  },
+  micButtonProcessing: {
+    opacity: 0.7,
+  },
+  recordingContainer: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
+  },
+  recordingText: {
+    color: '#FF5722',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  recordingHint: {
+    color: '#666',
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  permissionText: {
+    color: '#FF5722',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

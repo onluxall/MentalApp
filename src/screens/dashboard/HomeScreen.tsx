@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import axios from 'axios';
 
 //BACKEND TEAM: The home screen needs these endpoints:
 //- GET /api/tasks/user - To fetch user's current tasks
@@ -74,10 +75,28 @@ const QUOTES = [
   }
 ];
 
+// New types for daily notes
+type DailyNote = {
+  note_id: number;
+  user_id: string;
+  message: string;
+  created_at: string;
+  likes: number;
+  category?: string;
+  mood?: string;
+};
+
 const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedTasks = [1, 3, 5] } = route.params || {}; //Default tasks if none provided
   const [completedTasks, setCompletedTasks] = useState<number[]>([]);
   const [currentStreak, setCurrentStreak] = useState(1);
+  const [dailyNote, setDailyNote] = useState<string>('');
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [randomNote, setRandomNote] = useState<DailyNote | null>(null);
+  const [noteCategory, setNoteCategory] = useState<string>('motivation');
+  const [noteMood, setNoteMood] = useState<string>('grateful');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   
   //BACKEND TEAM: Implement actual logic to fetch user streak and completed tasks
   useEffect(() => {
@@ -121,6 +140,57 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       
       //BACKEND TEAM: Add API call to mark task as completed
       //Example: api.markTaskCompleted(taskId);
+    }
+  };
+
+  // Fetch random note on component mount
+  useEffect(() => {
+    fetchRandomNote();
+  }, []);
+
+  const fetchRandomNote = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/notes/random', {
+        params: {
+          user_id: 'user_123', // TODO: Replace with actual user ID
+          exclude_own: true
+        }
+      });
+      setRandomNote(response.data);
+    } catch (error) {
+      console.error('Error fetching random note:', error);
+    }
+  };
+
+  const handleSubmitNote = async () => {
+    if (!dailyNote.trim() || dailyNote.length < 10) {
+      setNoteError('Note must be at least 10 characters long');
+      return;
+    }
+
+    setIsSubmittingNote(true);
+    setNoteError(null);
+
+    try {
+      await axios.post('http://localhost:8000/api/notes/daily', {
+        user_id: 'user_123', // TODO: Replace with actual user ID
+        message: dailyNote.trim(),
+        category: noteCategory,
+        mood: noteMood,
+        is_public: true
+      });
+
+      setDailyNote('');
+      setShowNoteModal(false);
+      fetchRandomNote(); // Refresh random note
+    } catch (error: any) {
+      if (error.response?.status === 400) {
+        setNoteError('You can only create one note per day');
+      } else {
+        setNoteError('Failed to create note. Please try again.');
+      }
+    } finally {
+      setIsSubmittingNote(false);
     }
   };
   
@@ -193,6 +263,47 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
           )}
           
+          {/* Daily Note Section */}
+          <View style={styles.dailyNoteSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Daily Note</Text>
+              <TouchableOpacity 
+                style={styles.addNoteButton}
+                onPress={() => setShowNoteModal(true)}
+              >
+                <Text style={styles.addNoteButtonText}>+ Add Note</Text>
+              </TouchableOpacity>
+            </View>
+
+            {randomNote ? (
+              <View style={styles.noteCard}>
+                <Text style={styles.noteText}>{randomNote.message}</Text>
+                <View style={styles.noteFooter}>
+                  <Text style={styles.noteMeta}>
+                    {randomNote.category && `#${randomNote.category} `}
+                    {randomNote.mood && `#${randomNote.mood}`}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.refreshButton}
+                    onPress={fetchRandomNote}
+                  >
+                    <Text style={styles.refreshButtonText}>🔄 New Note</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.emptyNoteCard}>
+                <Text style={styles.emptyNoteText}>No notes available yet</Text>
+                <TouchableOpacity 
+                  style={styles.addNoteButton}
+                  onPress={() => setShowNoteModal(true)}
+                >
+                  <Text style={styles.addNoteButtonText}>Be the first to share!</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
           <View style={styles.quoteCard}>
             <Text style={styles.quoteText}>
               "{randomQuote.text}"
@@ -207,6 +318,105 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
           >
             <Text style={styles.restartButtonText}>Restart Demo</Text>
           </TouchableOpacity>
+
+          {/* Note Creation Modal */}
+          <Modal
+            visible={showNoteModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowNoteModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Share Your Daily Note</Text>
+                
+                <TextInput
+                  style={styles.noteInput}
+                  multiline
+                  placeholder="What's on your mind today? (min. 10 characters)"
+                  value={dailyNote}
+                  onChangeText={setDailyNote}
+                  maxLength={500}
+                />
+
+                <View style={styles.noteOptions}>
+                  <View style={styles.optionContainer}>
+                    <Text style={styles.optionLabel}>Category:</Text>
+                    <View style={styles.categoryButtons}>
+                      {['motivation', 'gratitude', 'reflection'].map((cat) => (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[
+                            styles.categoryButton,
+                            noteCategory === cat && styles.categoryButtonSelected
+                          ]}
+                          onPress={() => setNoteCategory(cat)}
+                        >
+                          <Text style={[
+                            styles.categoryButtonText,
+                            noteCategory === cat && styles.categoryButtonTextSelected
+                          ]}>
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.optionContainer}>
+                    <Text style={styles.optionLabel}>Mood:</Text>
+                    <View style={styles.moodButtons}>
+                      {['grateful', 'happy', 'inspired'].map((mood) => (
+                        <TouchableOpacity
+                          key={mood}
+                          style={[
+                            styles.moodButton,
+                            noteMood === mood && styles.moodButtonSelected
+                          ]}
+                          onPress={() => setNoteMood(mood)}
+                        >
+                          <Text style={[
+                            styles.moodButtonText,
+                            noteMood === mood && styles.moodButtonTextSelected
+                          ]}>
+                            {mood}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                {noteError && (
+                  <Text style={styles.errorText}>{noteError}</Text>
+                )}
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={styles.cancelButton}
+                    onPress={() => setShowNoteModal(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[
+                      styles.submitButton,
+                      (!dailyNote.trim() || isSubmittingNote) && styles.submitButtonDisabled
+                    ]}
+                    onPress={handleSubmitNote}
+                    disabled={!dailyNote.trim() || isSubmittingNote}
+                  >
+                    {isSubmittingNote ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>Share Note</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -395,6 +605,184 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  dailyNoteSection: {
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  addNoteButton: {
+    backgroundColor: '#6200ee',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  addNoteButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noteCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  noteText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+    marginBottom: 15,
+  },
+  noteFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  noteMeta: {
+    fontSize: 14,
+    color: '#666',
+  },
+  refreshButton: {
+    padding: 8,
+  },
+  refreshButtonText: {
+    color: '#6200ee',
+    fontSize: 14,
+  },
+  emptyNoteCard: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyNoteText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 500,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 15,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+    fontSize: 16,
+  },
+  noteOptions: {
+    marginBottom: 20,
+  },
+  optionContainer: {
+    marginBottom: 15,
+  },
+  optionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  categoryButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  categoryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  categoryButtonSelected: {
+    backgroundColor: '#6200ee',
+  },
+  categoryButtonText: {
+    color: '#666',
+  },
+  categoryButtonTextSelected: {
+    color: 'white',
+  },
+  moodButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  moodButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  moodButtonSelected: {
+    backgroundColor: '#6200ee',
+  },
+  moodButtonText: {
+    color: '#666',
+  },
+  moodButtonTextSelected: {
+    color: 'white',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+  },
+  submitButton: {
+    backgroundColor: '#6200ee',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    marginBottom: 15,
+    textAlign: 'center',
   },
 });
 
