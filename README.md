@@ -1,4 +1,4 @@
-# MentalApp
+# MindFlow App
 Hackathon MEET IT
 
 # MindFlow App - Frontend
@@ -50,3 +50,43 @@ The frontend expects the following API endpoints:
   "name": "John Doe",
   "createdAt": "2025-05-16T12:00:00Z"
 }
+```
+
+### Assessment
+```json
+{
+  "id": "uuid",
+  "userId": "user_uuid",
+  "answers": {
+    "1": 4,
+    "2": 3,
+    //...more answers
+  },
+  "createdAt": "2025-05-16T12:00:00Z"
+}
+```
+
+### Task 
+```json
+{
+  "id": 1,
+  "category": "Routine",
+  "title": "Morning Routine Builder",
+  "description": "Create a consistent morning routine to start your day with purpose.",
+  "duration": "15 minutes",
+  "steps": ["Step 1", "Step 2", "..."],
+  "tips": ["Tip 1", "Tip 2", "..."]
+}
+```
+
+### UserTask
+```json
+{
+  "id": "uuid",
+  "userId": "user_uuid",
+  "taskId": 1,
+  "status": "in_progress", //or "completed"
+  "completedAt": null, //or timestamp
+  "createdAt": "2025-05-16T12:00:00Z"
+}
+```
