@@ -6,7 +6,7 @@
       "dom"
     ],
     "jsx": "react-native",
-    "module": "commonjs",
+    "module": "es2015", 
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

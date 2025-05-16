@@ -13,9 +13,9 @@ type RootStackParamList = {
   Login: undefined;
   Assessment: undefined;
   Evaluation: { answers: { [key: number]: number } };
-  TaskSelection: { selectedCategories: string[] };
-  Home: undefined;
-  TaskDetail: { taskId: number };
+  TaskSelection: { selectedCategories: string[], recommendations: any[] };
+  Home: { selectedTasks: number[] };
+  TaskDetail: { taskId: number }; 
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -29,7 +29,7 @@ const AppNavigator = () => {
         <Stack.Screen name="Evaluation" component={EvaluationScreen} />
         <Stack.Screen name="TaskSelection" component={TaskSelectionScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="TaskDetail" component={TaskDetailScreen} />
+        <Stack.Screen name="TaskDetail" component={TaskDetailScreen} /> 
       </Stack.Navigator>
     </NavigationContainer>
   );

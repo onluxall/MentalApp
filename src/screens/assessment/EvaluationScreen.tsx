@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { assessmentApi, TaskRecommendation } from '../../services/api';
+
+//BACKEND TEAM: The evaluation screen needs:
+//- POST /api/assessment/{user_id}/struggle - To submit user's struggle description
+//- Algorithm to analyze assessment responses and identify weakest areas
+//- Ability to generate personalized task recommendations
+//- Mapping between question categories and task categories
 
 type RootStackParamList = {
   Evaluation: { answers: { [key: number]: number } };
-  TaskSelection: { selectedCategories: string[] };
+  TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[] };
 };
 
 type EvaluationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Evaluation'>;
@@ -18,21 +25,26 @@ type Props = {
 
 const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const { answers } = route.params || { answers: {} };
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['Routine']);
-
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['habits']);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<TaskRecommendation[]>([]);
+  
   const categories = [
-    'Routine',
-    'Sleep',
-    'Fitness',
-    'Nutrition',
-    'Focus',
-    'Planning',
-    'Energy',
-    'Mindset'
+    'habits',
+    'emotions',
+    'productivity',
+    'discipline',
+    'goal_setting',
+    'time_management',
+    'mindset',
+    'environment',
+    'physical_health',
+    'social_influences'
   ];
-
+  
   const calculateAverageScore = () => {
-    if (Object.keys(answers).length === 0) return 3; 
+    if (Object.keys(answers).length === 0) return 5; 
     
     const total = Object.values(answers).reduce((sum, score) => sum + score, 0);
     return total / Object.keys(answers).length;
@@ -41,14 +53,14 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   const getMotivationState = () => {
     const avgScore = calculateAverageScore();
     
-    if (avgScore >= 5) {
+    if (avgScore >= 7) {
       return {
         state: "High Motivation",
         icon: "🚀",
         color: "#4CAF50",
         description: "You're highly motivated! Let's maintain and refine your habits."
       };
-    } else if (avgScore >= 3) {
+    } else if (avgScore >= 4) {
       return {
         state: "Moderate Motivation",
         icon: "⚡",
@@ -57,7 +69,7 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
       };
     } else {
       return {
-        state: "Low Motivation",
+        state: "Building Motivation",
         icon: "🌱",
         color: "#FF5722",
         description: "Let's start building motivation gradually with small, achievable steps."
@@ -66,29 +78,58 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   };
   
   const motivationState = getMotivationState();
-
-  const getAreasForImprovement = () => {
+  
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        setLoading(true);
+        const user_id = 'user_123';
+        const struggleDescription = "I'm having trouble staying consistent with my routines";
+        
+        const response = await assessmentApi.submitStruggleDescription(user_id, struggleDescription);
+        setRecommendations(response.recommendations);
+        
+        const recommendedCategories = [...new Set(response.recommendations.map(rec => rec.category))];
+        if (recommendedCategories.length > 0) {
+          setSelectedCategories(recommendedCategories.slice(0, 3));
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.log('Failed to fetch recommendations:', err);
+        setLoading(false);
+        setError('Could not fetch personalized recommendations. Using offline mode.');
+        setRecommendedCategoriesFromScores();
+      }
+    };
+    
+    fetchRecommendations();
+  }, []);
+  
+  const setRecommendedCategoriesFromScores = () => {
     const categoryMap: { [key: number]: string } = {
-      1: "Routine",
-      2: "Sleep",
-      3: "Fitness",
-      4: "Nutrition",
-      5: "Focus",
-      6: "Planning",
-      7: "Procrastination",
-      8: "Energy",
-      9: "Mindset",
-      10: "Discipline"
+      1: "habits",
+      2: "emotions",
+      3: "productivity",
+      4: "discipline",
+      5: "goal_setting",
+      6: "time_management",
+      7: "mindset",
+      8: "environment",
+      9: "physical_health",
+      10: "social_influences"
     };
     
     const sortedAnswers = Object.entries(answers)
       .sort(([, scoreA], [, scoreB]) => scoreA - scoreB)
       .slice(0, 3); 
+ 
+    const recommended = sortedAnswers.map(([questionId]) => 
+      categoryMap[parseInt(questionId)]
+    ).filter(Boolean);
     
-    return sortedAnswers.map(([questionId]) => categoryMap[parseInt(questionId)]);
+    setSelectedCategories(recommended);
   };
-  
-  const recommendedFocusAreas = getAreasForImprovement();
   
   const toggleCategory = (category: string) => {
     if (selectedCategories.includes(category)) {
@@ -117,15 +158,24 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
           
           <Text style={styles.sectionTitle}>Recommended Focus Areas</Text>
-          <Text style={styles.sectionSubtitle}>Based on your assessment, we recommend focusing on:</Text>
           
-          <View style={styles.recommendationContainer}>
-            {recommendedFocusAreas.map(area => (
-              <View key={area} style={styles.recommendationBadge}>
-                <Text style={styles.recommendationText}>{area}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#6200ee" style={{marginVertical: 20}} />
+          ) : (
+            <>
+              <Text style={styles.sectionSubtitle}>
+                {error ? 'Based on your assessment:' : 'Based on your assessment and personalized analysis:'}
+              </Text>
+              
+              <View style={styles.recommendationContainer}>
+                {selectedCategories.map(category => (
+                  <View key={category} style={styles.recommendationBadge}>
+                    <Text style={styles.recommendationText}>{category}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            </>
+          )}
           
           <Text style={styles.sectionTitle}>Choose Your Focus Areas</Text>
           <Text style={styles.sectionSubtitle}>Select categories for your personalized tasks</Text>
@@ -137,7 +187,7 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={[
                   styles.categoryButton, 
                   selectedCategories.includes(category) && styles.categorySelected,
-                  recommendedFocusAreas.includes(category) && styles.categoryRecommended
+                  recommendations.some(r => r.category === category) && styles.categoryRecommended
                 ]}
                 onPress={() => toggleCategory(category)}
               >
@@ -155,7 +205,10 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
           
           <TouchableOpacity 
             style={styles.button}
-            onPress={() => navigation.navigate('TaskSelection', { selectedCategories })}
+            onPress={() => navigation.navigate('TaskSelection', { 
+              selectedCategories,
+              recommendations
+            })}
           >
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>

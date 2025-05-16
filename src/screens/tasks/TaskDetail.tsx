@@ -16,17 +16,12 @@ type Props = {
   route: TaskDetailScreenRouteProp;
 };
 
-const TaskDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { taskId } = route.params;
-  const [completed, setCompleted] = useState(false);
-  
-  //i guess we have to fetch task details based on taskId
-  //i just made kinda hardcode sample task
-  const task = {
-    id: taskId,
+//BACKEND TEAM: Replace with API data
+const TASK_DETAILS: { [key: number]: any } = {
+  1: {
     title: "Morning Routine Builder",
     description: "Create a consistent morning routine to start your day with purpose.",
-    category: "Routine",
+    category: "habits",
     icon: "☀️",
     steps: [
       "Wake up at the same time each day",
@@ -40,13 +35,99 @@ const TaskDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       "Be consistent even on weekends if possible",
       "Adjust your routine based on what energizes you most"
     ]
-  };
+  },
+  2: {
+    title: "Evening Wind Down",
+    description: "Develop an evening routine to improve sleep and prepare for tomorrow.",
+    category: "habits",
+    icon: "🌙",
+    steps: [
+      "Set a consistent bedtime",
+      "Turn off electronic devices 30 minutes before bed",
+      "Write down your top 3 priorities for tomorrow",
+      "Practice a relaxation technique",
+      "Keep your bedroom cool, dark, and quiet"
+    ],
+    tips: [
+      "Dim the lights an hour before bed to signal to your body it's time to wind down",
+      "Keep a notepad by your bed to write down thoughts that might keep you awake",
+      "Consider reading a physical book instead of using a screen"
+    ]
+  },
+  3: {
+    title: "Emotion Journaling",
+    description: "Write down three emotions you felt today and their triggers.",
+    category: "emotions",
+    icon: "📝",
+    steps: [
+      "Set aside 10 minutes in a quiet space",
+      "Reflect on your day and identify moments when your emotions shifted",
+      "Name the emotions you felt in those moments",
+      "Write down what triggered each emotion",
+      "Note how you responded to each emotion"
+    ],
+    tips: [
+      "Try to be specific about emotions (instead of 'bad', use 'disappointed', 'frustrated', etc.)",
+      "Don't judge your emotions - all feelings are valid",
+      "Look for patterns over time to better understand your emotional triggers"
+    ]
+  },
+  4: {
+    title: "Mindfulness Practice",
+    description: "Practice 5 minutes of mindful breathing.",
+    category: "emotions",
+    icon: "🧘",
+    steps: [
+      "Find a comfortable seated position",
+      "Close your eyes or maintain a soft gaze",
+      "Focus your attention on your breath",
+      "When your mind wanders, gently bring it back to your breath",
+      "Continue for 5 minutes"
+    ],
+    tips: [
+      "Start with just 2 minutes if 5 seems too long",
+      "Try counting your breaths (1 on inhale, 2 on exhale, up to 10, then restart)",
+      "Be kind to yourself when your mind wanders - it's normal and part of the practice"
+    ]
+  },
+  5: {
+    title: "Task Batching",
+    description: "Group similar tasks together for better efficiency.",
+    category: "productivity",
+    icon: "📊",
+    steps: [
+      "List all your tasks for the day/week",
+      "Group tasks that require similar energy, tools, or mental state",
+      "Assign specific time blocks for each batch",
+      "Eliminate distractions during each batch",
+      "Take a short break between batches"
+    ],
+    tips: [
+      "Try batching emails, calls, or creative work",
+      "Consider your energy levels when scheduling batches",
+      "Start with 30-60 minute batches and adjust based on your focus span"
+    ]
+  }
+};
+
+const TaskDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { taskId } = route.params;
+  const [completed, setCompleted] = useState(false);
+
+  const task = TASK_DETAILS[taskId];
+  
+  if (!task) {
+    navigation.goBack();
+    return null;
+  }
   
   const handleComplete = () => {
     setCompleted(true);
-    //backend its for you
     
-    //!!!ONLY FOR DEMO: we go back to home after a short delay
+    //BACKEND TEAM: Add API call to mark task as completed
+    //Example: api.markTaskCompleted(taskId);
+    
+    //here we go back to home after a short delay
     setTimeout(() => {
       navigation.goBack();
     }, 1500);
@@ -77,7 +158,7 @@ const TaskDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Steps</Text>
-            {task.steps.map((step, index) => (
+            {task.steps.map((step: string, index: number) => (
               <View key={index} style={styles.stepItem}>
                 <Text style={styles.stepNumber}>{index + 1}</Text>
                 <Text style={styles.stepText}>{step}</Text>
@@ -87,7 +168,7 @@ const TaskDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tips</Text>
-            {task.tips.map((tip, index) => (
+            {task.tips.map((tip: string, index: number) => (
               <View key={index} style={styles.tipItem}>
                 <Text style={styles.tipIcon}>💡</Text>
                 <Text style={styles.tipText}>{tip}</Text>

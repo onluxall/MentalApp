@@ -4,6 +4,14 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import MoodSlider from '../../components/assessment/MoodSlider';
 import { assessmentApi, AssessmentQuestion, AssessmentResponse } from '../../services/api';
 
+//BACKEND TEAM: The assessment screen connects to these endpoints:
+//- GET /api/assessment/questions - To fetch questions
+//- POST /api/assessment/submit - To submit answers
+//Ensure these endpoints handle:
+//1. Authentication (current user context)
+//2. Proper response validation
+//3. Error handling with meaningful messages
+
 type RootStackParamList = {
   Assessment: undefined;
   Evaluation: { answers: { [key: number]: number } };
@@ -15,7 +23,7 @@ type Props = {
   navigation: AssessmentScreenNavigationProp;
 };
 
-// Fallback questions in case backend is not available
+//Fallback questions in case backend is not available
 const FALLBACK_QUESTIONS: AssessmentQuestion[] = [
   {
     id: 1,
@@ -120,7 +128,7 @@ const AssessmentScreen: React.FC<Props> = ({ navigation }) => {
   
   const currentAnswer = answers[currentQuestion?.id] !== undefined 
     ? answers[currentQuestion.id] 
-    : 5;
+    : 3;
   
   const handleSliderChange = (value: number) => {
     if (currentQuestion) {
@@ -135,7 +143,6 @@ const AssessmentScreen: React.FC<Props> = ({ navigation }) => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      // Convert answers to API format
       const responses: AssessmentResponse[] = Object.entries(answers).map(([questionId, rating]) => ({
         question_id: parseInt(questionId),
         rating
@@ -143,19 +150,19 @@ const AssessmentScreen: React.FC<Props> = ({ navigation }) => {
 
       if (!usingFallback) {
         try {
-          // Submit assessment to backend
+          //Submit assessment to backend
           await assessmentApi.submitAssessment({
-            user_id: 'user_123', // TODO: Replace with actual user ID
+            user_id: 'user_123', //TODO: Replace with actual user ID
             responses,
             timestamp: new Date().toISOString()
           });
         } catch (err) {
           console.log('Failed to submit to backend:', err);
-          // Continue with navigation even if submission fails
+          //Continue with navigation even if submission fails
         }
       }
       
-      // Navigate to evaluation screen regardless of backend status
+      //Navigate to evaluation screen regardless of backend status
       navigation.navigate('Evaluation', { answers });
     }
   };

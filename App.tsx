@@ -9,3 +9,10 @@ export default function App() {
     </SafeAreaProvider>
   )
 }
+
+
+//BACKEND TEAM: Consider these integration points:
+//- Add global authentication state management here
+//- Implement token storage/retrieval for persistent login
+//- Add global loading state for API calls
+//- Consider adding error handling middleware for API responses
