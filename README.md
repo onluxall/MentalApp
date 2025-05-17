@@ -4,7 +4,7 @@
 
 ## 🧠 About MindFlow
 
-MindFlow is a mental wellness application designed to support users in maintaining good mental health through subtle daily interventions. In today's fast-paced digital world where boundaries between work and rest are blurring, MindFlow provides a sanctuary for users to pause, breathe, and reconnect with themselves—transforming technology from part of the problem into part of the solution.
+MindFlow is a mental wellness application designed to support users in maintaining good mental health through subtle daily interventions. In today's fast-paced digital world where boundaries between work and rest are blurring, MindFlow provides a sanctuary for users to pause, breathe, and reconnect with themselves — transforming technology from part of the problem into part of the solution.
 
 ## 🏆 MEET IT HACKATHON 2025 Submission
 - **Team #2: "Cyfrowy Monety"**
