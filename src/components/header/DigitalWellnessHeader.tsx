@@ -134,22 +134,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     }
   };
 
-  // Display battery level if available
-  const renderBatteryLevel = () => {
-    if (usageStats.batteryLevel !== undefined && Platform.OS !== 'web') {
-      return (
-        <>
-          <View style={styles.insightDivider} />
-          <View style={styles.insightItem}>
-            <Ionicons name="battery-half-outline" size={18} color="#4CAF50" />
-            <Text style={styles.insightText}>{usageStats.batteryLevel}% battery</Text>
-          </View>
-        </>
-      );
-    }
-    return null;
-  };
-
   return (
     <>
       <View style={styles.headerContainer}>
@@ -186,7 +170,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
             <Ionicons name="phone-portrait-outline" size={18} color="#007AFF" />
             <Text style={styles.insightText}>{usageStats.screenTime}</Text>
           </View>
-          {renderBatteryLevel()}
         </View>
 
         <View style={styles.quoteContainer}>
@@ -269,12 +252,13 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
                   </View>
                 </View>
               </View>
-              
+
+              {/* Add Battery Level to Modal */}
               {usageStats.batteryLevel !== undefined && Platform.OS !== 'web' && (
                 <View style={styles.wellnessItem}>
                   <View style={[
                     styles.wellnessIconContainer, 
-                    { backgroundColor: 'rgba(76, 175, 80, 0.1)' }
+                    { backgroundColor: 'rgba(76, 175, 80, 0.1)' } // Green color for battery
                   ]}>
                     <Ionicons name="battery-half-outline" size={24} color="#4CAF50" />
                   </View>
@@ -284,6 +268,7 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
                   </View>
                 </View>
               )}
+
             </View>
             
             <TouchableOpacity 
