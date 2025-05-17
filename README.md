@@ -30,7 +30,6 @@ MindFlow is a mental wellness application designed to support users in maintaini
 - **Data Storage:** On-device processing for sensitive data with MongoDB backend
 - **Authentication:** JWT-based secure authentication
 
-<<<<<<< HEAD
 ## 📱 Screenshots
 
 <img src="assets/app1.png" alt="App Screenshot 1" width="200"/>
