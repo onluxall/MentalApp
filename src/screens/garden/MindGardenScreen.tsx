@@ -5,7 +5,6 @@ import axios from 'axios';
 import { useFocusEffect } from '@react-navigation/native';
 import GrowingPlant from '../../components/garden/GrowingPlant';
 
-// Interface for achievement data structure
 interface Achievement {
   id: string;
   text: string;
@@ -17,28 +16,23 @@ interface Achievement {
 }
 
 const MindGardenScreen = () => {
-  // No longer need plantStage, will use streak directly in GrowingPlant
   const [animatedScale] = useState(new Animated.Value(1));
   const [animatedOpacity] = useState(new Animated.Value(1));
   const [streak, setStreak] = useState(0);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Function to fetch streak and achievement data
   const fetchData = async () => {
     try {
       setLoading(true);
-      const user_id = 'user_123'; // Use same user ID as other screens
+      const user_id = 'user_123'; 
       
-      // Fetch streak data
       const streakResponse = await axios.get(`http://localhost:8000/api/tasks/${user_id}`);
       if (streakResponse.data && streakResponse.data.streak_info) {
         const streakData = streakResponse.data.streak_info;
         setStreak(streakData.current_streak || 0);
       }
       
-      // Fetch achievement data
       const achievementsResponse = await axios.get(`http://localhost:8000/api/achievements/${user_id}`);
       if (achievementsResponse.data && achievementsResponse.data.achievements) {
         setAchievements(achievementsResponse.data.achievements);
@@ -51,19 +45,16 @@ const MindGardenScreen = () => {
     }
   };
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       fetchData();
     }, [])
   );
 
-  // Animation for scale effect (keep this for container animation)
   useEffect(() => {
     Animated.sequence([
       Animated.timing(animatedScale, {
@@ -100,7 +91,6 @@ const MindGardenScreen = () => {
               </View>
             ) : (
               <Animated.View style={styles.plantWrapper}>
-                {/* Replace emoji with GrowingPlant component */}
                 <GrowingPlant 
                   streak={streak} 
                   maxStreak={30}
@@ -156,7 +146,6 @@ const MindGardenScreen = () => {
   );
 };
 
-// Remove styles for plantEmoji as it's no longer needed
 const styles = StyleSheet.create({
   container: {
     flex: 1,

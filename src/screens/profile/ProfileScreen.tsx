@@ -25,7 +25,6 @@ const ProfileScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Function to fetch user data
   const fetchUserData = async () => {
     try {
       setLoading(true);
@@ -33,7 +32,6 @@ const ProfileScreen = () => {
       const response = await axios.get(`http://localhost:8000/api/tasks/${user_id}`);
       
       if (response.data) {
-        // Update streak count
         if (response.data.streak_info) {
           setUser(prevUser => ({
             ...prevUser,
@@ -41,7 +39,6 @@ const ProfileScreen = () => {
           }));
         }
         
-        // Get the user's progress data for total tasks completed
         const progressResponse = await axios.get(`http://localhost:8000/api/progress/${user_id}`);
         if (progressResponse.data && progressResponse.data.total_stats) {
           setUser(prevUser => ({
@@ -58,12 +55,10 @@ const ProfileScreen = () => {
     }
   };
 
-  // Use this effect when the component mounts
   useEffect(() => {
     fetchUserData();
   }, []);
-  
-  // Refresh data when screen comes into focus
+
   useFocusEffect(
     useCallback(() => {
       fetchUserData();

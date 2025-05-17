@@ -26,7 +26,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
   });
   const [isLoading, setIsLoading] = useState(true);
   
-  // Load device data when component mounts or screen comes into focus
   const loadDeviceData = async () => {
     setIsLoading(true);
     try {
@@ -39,14 +38,11 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     }
   };
 
-  // Load data when component mounts
   useEffect(() => {
     loadDeviceData();
-    
-    // Setup notification tracking
+  
     const subscription = DeviceDataService.setupNotificationTracking();
-    
-    // Cleanup notification subscription
+  
     return () => {
       if (subscription) {
         subscription.remove();
@@ -54,20 +50,17 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     };
   }, []);
 
-  // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadDeviceData();
     }, [])
   );
 
-  // Update time every minute
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
       setCurrentTime(now);
       
-      // Reset notification count at midnight
       const hours = now.getHours();
       const minutes = now.getMinutes();
       if (hours === 0 && minutes === 0) {
@@ -78,7 +71,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Time-aware greeting text
   const getGreeting = () => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return "Good morning";
@@ -87,7 +79,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     return "Good night";
   };
 
-  // Format date: "Monday, May 17"
   const getFormattedDate = () => {
     const options: Intl.DateTimeFormatOptions = { 
       weekday: 'long', 
@@ -97,7 +88,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     return currentTime.toLocaleDateString('en-US', options);
   };
 
-  // Get wellness quote based on time of day
   const getWellnessQuote = () => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 10) return "Morning mindfulness sets the tone for your day";
@@ -107,14 +97,12 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     return "Time to rest your mind and body";
   };
 
-  // Calculate focus score color
   const getFocusScoreColor = () => {
     if (usageStats.focusScore >= 80) return '#4CAF50';
     if (usageStats.focusScore >= 60) return '#FFA000';
     return '#F44336';
   };
 
-  // Toggle wellness modal with animation
   const toggleWellnessModal = () => {
     if (showWellnessModal) {
       Animated.timing(wellnessOpacity, {
@@ -124,7 +112,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
       }).start(() => setShowWellnessModal(false));
     } else {
       setShowWellnessModal(true);
-      // Refresh data when modal opens
       loadDeviceData();
       Animated.timing(wellnessOpacity, {
         toValue: 1,
@@ -134,7 +121,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
     }
   };
 
-  // Display battery level if available
   const renderBatteryLevel = () => {
     if (usageStats.batteryLevel !== undefined && Platform.OS !== 'web') {
       return (

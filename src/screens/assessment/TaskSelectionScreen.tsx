@@ -795,13 +795,11 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     setError(null);
 
     try {
-      // Get the full task details for selected tasks
       const selectedTaskDetails = filteredTasks.filter(task => 
         selectedTasks.includes(task.task_id)
       );
 
-      // Save selected tasks to backend
-      const user_id = 'user_123'; // In a real app, get this from authentication
+      const user_id = 'user_123'; // In future, get this from authentication
       const response = await axios.post(
         'http://localhost:8000/api/tasks/user_123/select',
         {
@@ -819,7 +817,6 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
       );
 
-      // Navigate to Main screen with the TabNavigator
       navigation.navigate('Main');
     } catch (err) {
       console.error('Error saving selected tasks:', err);
@@ -829,7 +826,6 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  //here is header component that displays title and selection count
   const HeaderComponent = () => (
     <View>
       <Text style={styles.title}>Your Personalized Tasks</Text>
@@ -838,7 +834,6 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     </View>
   );
 
-  //and here is footer component with navigation button and empty state handling
   const FooterComponent = () => (
     <>
       {error && (
@@ -876,7 +871,6 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
     </>
   );
 
-  //here we render each task item
   const renderTaskItem = ({ item: task }: { item: any }) => (
     <TouchableOpacity 
       style={[

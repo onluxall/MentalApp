@@ -9,31 +9,24 @@ import DateTransitionService from './src/services/DateTransitionService';
 export default function App() {
   const [notificationPermission, setNotificationPermission] = useState(false);
 
-  // Request notification permissions
   useEffect(() => {
     if (Platform.OS !== 'web') {
       requestNotificationPermissions();
     }
   }, []);
 
-  // Initialize device services
   useEffect(() => {
     const initializeServices = async () => {
       try {
-        // Initialize date transition service
         await DateTransitionService.initialize();
         
-        // Add notification handler for midnight transitions
         const subscription = Notifications.addNotificationReceivedListener((notification) => {
-          // Check if it's a midnight transition notification
           if (notification.request.content.data?.type === 'midnight-transition') {
-            // Refresh data when midnight notification is received
             DateTransitionService.checkDateTransition();
           }
         });
         
         return () => {
-          // Clean up
           subscription.remove();
           DeviceDataService.cleanup();
           DateTransitionService.cleanup();
@@ -46,15 +39,12 @@ export default function App() {
     initializeServices();
   }, []);
 
-  // Request notification permissions
   const requestNotificationPermissions = async () => {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
-      // Only ask if permissions have not already been determined
       if (existingStatus !== 'granted') {
-        // Show explanation dialog on iOS to improve chances of permission approval
         if (Platform.OS === 'ios') {
           Alert.alert(
             'Notifications Permission',
@@ -72,7 +62,6 @@ export default function App() {
             ]
           );
         } else {
-          // For Android, directly request permissions
           const { status } = await Notifications.requestPermissionsAsync();
           finalStatus = status;
           setNotificationPermission(status === 'granted');
@@ -81,7 +70,6 @@ export default function App() {
         setNotificationPermission(true);
       }
       
-      // Configure notification handler
       if (finalStatus === 'granted') {
         Notifications.setNotificationHandler({
           handleNotification: async () => ({

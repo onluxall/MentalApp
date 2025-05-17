@@ -71,7 +71,6 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   
   const requestMicrophonePermission = async () => {
     try {
-      // First check if we already have permission
       const { status: existingStatus } = await Audio.getPermissionsAsync();
       
       if (existingStatus === 'granted') {
@@ -79,13 +78,11 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
         return true;
       }
       
-      // If we don't have permission, request it
       const { status } = await Audio.requestPermissionsAsync();
       const granted = status === 'granted';
       setHasPermission(granted);
       
       if (!granted) {
-        // If permission was denied, show a more informative message
         Alert.alert(
           'Microphone Access Required',
           'MindFlow needs microphone access to record your voice input. Please enable it in your device settings to use this feature.',
@@ -117,10 +114,8 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    // Request permission as soon as the component mounts
     requestMicrophonePermission();
     
-    // Set up audio mode
     const setupAudio = async () => {
       try {
         await Audio.setAudioModeAsync({
@@ -197,7 +192,7 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
       try {
         setLoading(true);
         const user_id = 'user_123';
-        //This is a placeholder - in a real app we might ask the user for this
+        //This is a placeholder - in a future we might ask the user for this
         const struggleDescription = "I'm having trouble staying consistent with my routines";
         
         const response = await assessmentApi.submitStruggleDescription(user_id, struggleDescription);
@@ -259,13 +254,11 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setIsProcessing(true);
       
-      // Check permission
       if (!hasPermission) {
         const granted = await requestMicrophonePermission();
         if (!granted) return;
       }
 
-      // Start recording
       const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
@@ -276,7 +269,6 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
         durationMillis: 0,
       });
 
-      // Start status updates
       newRecording.setOnRecordingStatusUpdate((status) => {
         setRecordingStatus({
           isRecording: status.isRecording,
@@ -303,11 +295,10 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
       const uri = recording.getURI();
       
       if (uri) {
-        // Here you would typically send the audio file to a speech-to-text service
-        // For example: Google Cloud Speech-to-Text, AWS Transcribe, etc.
+        //here we will add our voice to text script
         console.log('Recording saved to:', uri);
         
-        // For now, we'll show a placeholder message
+        //For now, we'll show a placeholder message
         Alert.alert(
           'Recording Saved',
           'In a full implementation, this recording would be converted to text using a speech-to-text service.',
@@ -315,10 +306,7 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
             {
               text: 'OK',
               onPress: () => {
-                // You could implement the speech-to-text conversion here
-                // For example:
-                // const text = await convertSpeechToText(uri);
-                // setUserStruggleText(prev => prev + " " + text);
+              
               }
             }
           ]
@@ -359,18 +347,15 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleContinue = async () => {
     if (selectedCategories.length === 0) {
-      // No categories selected, show error or use default categories
       setSelectedCategories(['habits', 'discipline', 'mindset']);
     }
     
-    // Save that user has completed assessment
     try {
       await AsyncStorage.setItem('hasCompletedAssessment', 'true');
     } catch (error) {
       console.error('Error saving assessment status:', error);
     }
-    
-    // If user has selected categories, go to task selection
+  
     if (selectedCategories.length > 0) {
       navigation.navigate('TaskSelection', {
         selectedCategories,
@@ -378,7 +363,6 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
         userStruggleText
       });
     } else {
-      // If for some reason we still don't have categories, go to main screen
       navigation.navigate('Main');
     }
   };

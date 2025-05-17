@@ -16,7 +16,6 @@ type Props = {
   completedDays: Date[];
 };
 
-// Positive emojis for break/rest days - to keep users motivated
 const BREAK_EMOJIS = ['💪', '🌱', '🧘', '🌈', '🌟', '✨', '🔆', '😊', '🌻', '🌞', '⚡', '🚀', '💯'];
 
 const StreakCalendar: React.FC<Props> = ({ visible, onClose, currentStreak, completedDays }) => {
@@ -28,16 +27,13 @@ const StreakCalendar: React.FC<Props> = ({ visible, onClose, currentStreak, comp
   
   const generateCalendarData = () => {
     const today = new Date();
-    const dayMs = 24 * 60 * 60 * 1000; // milliseconds in a day
+    const dayMs = 24 * 60 * 60 * 1000; 
     
-    // Create array of days for the last 30 days
     const days: CalendarDay[] = [];
     
-    // Start from 29 days ago (to include today = 30 days total)
     for (let i = 29; i >= 0; i--) {
       const date = new Date(today.getTime() - (i * dayMs));
       
-      // Check if this day is in the completed list
       const isCompleted = completedDays.some(completedDate => 
         completedDate.toDateString() === date.toDateString()
       );

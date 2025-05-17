@@ -38,14 +38,12 @@ const LoginScreen = ({ navigation }: Props) => {
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
 
-    // Email validation
     if (!email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = 'Please enter a valid email';
     }
 
-    // Password validation
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (password.length < 6) {
@@ -61,14 +59,13 @@ const LoginScreen = ({ navigation }: Props) => {
 
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API endpoint
+      //TODO: Replace with actual API endpoint
       const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
       const response = await axios.post(`http://localhost:8000${endpoint}`, {
         email,
         password,
       });
 
-      // Navigate to Onboarding instead of Assessment
       navigation.navigate('Onboarding');
     } catch (error: any) {
       Alert.alert(
@@ -150,16 +147,13 @@ const LoginScreen = ({ navigation }: Props) => {
             </Text>
           </TouchableOpacity>
 
-          {/* Demo button for quick access */}
           <TouchableOpacity
             style={styles.demoButton}
             onPress={() => {
-              // For new users, go to onboarding
-              const isNewUser = true; // This would be determined by your app's logic
+              const isNewUser = true; 
               if (isNewUser) {
                 navigation.navigate('Onboarding');
               } else {
-                // For returning users, go directly to Main
                 navigation.navigate('Main');
               }
             }}

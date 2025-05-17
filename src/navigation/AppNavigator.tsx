@@ -18,7 +18,7 @@ type RootStackParamList = {
   Assessment: undefined;
   Evaluation: { answers: { [key: number]: number } };
   TaskSelection: { selectedCategories: string[], recommendations: any[] };
-  Main: undefined; // This will be our TabNavigator
+  Main: undefined; 
   TaskDetail: { taskId: number }; 
 };
 

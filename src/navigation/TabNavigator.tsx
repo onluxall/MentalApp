@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import MindGardenScreen from '../screens/garden/MindGardenScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
-// Define tab params
 type TabParamList = {
   Home: { selectedTasks?: number[] };
   MindGarden: undefined;
@@ -29,7 +28,6 @@ const TabNavigator = () => {
             iconName = focused ? 'person' : 'person-outline';
           }
 
-          // You can return any component that you like here
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#6200ee',

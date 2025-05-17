@@ -3,7 +3,6 @@ import { View, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, { Path, G } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Create animated SVG components
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 interface GrowingPlantProps {
@@ -19,28 +18,23 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
   size = 300,
   animate = true 
 }) => {
-  // Animation values
   const [scaleAnim] = useState(new Animated.Value(1));
   const [growthAnim] = useState(new Animated.Value(0));
   const [leavesAnim] = useState(new Animated.Value(0));
   const [flowerAnim] = useState(new Animated.Value(0));
   
-  // Derived plant state based on streak
   const growthProgress = Math.min(streak / maxStreak, 1);
   const hasLeaves = streak >= 5;
   const hasBranches = streak >= 10;
   const hasFlowers = streak >= 15;
   const hasFruit = streak >= 20;
   
-  // Calculate color based on growth
   const stemColor = hasBranches ? '#3e8e41' : '#4CAF50';
   const leafColor = hasFlowers ? '#81C784' : '#A5D6A7';
   const flowerColor = hasFruit ? '#E91E63' : '#F48FB1';
 
-  // Run animations when streak changes
   useEffect(() => {
     if (animate) {
-      // Pulse animation
       Animated.sequence([
         Animated.timing(scaleAnim, {
           toValue: 1.05,
@@ -56,7 +50,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
         }),
       ]).start();
       
-      // Growth animation
       Animated.timing(growthAnim, {
         toValue: growthProgress,
         duration: 1000,
@@ -64,7 +57,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
         useNativeDriver: false,
       }).start();
       
-      // Leaves animation
       if (hasLeaves) {
         Animated.timing(leavesAnim, {
           toValue: 1,
@@ -75,7 +67,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
         }).start();
       }
       
-      // Flowers animation
       if (hasFlowers) {
         Animated.timing(flowerAnim, {
           toValue: 1,
@@ -88,18 +79,15 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
     }
   }, [streak, animate]);
 
-  // Interpolate stem height based on growth animation
   const stemHeight = growthAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [size * 0.1, size * 0.7],
   });
   
-  // SVG coordinates calculation (based on size)
   const centerX = size / 2;
   const baseY = size * 0.9;
   const stemWidth = size * 0.05;
   
-  // Create animated path data for stem
   const stemPath = growthAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [
@@ -108,13 +96,11 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
     ]
   });
   
-  // Leaf size and positions based on animation
   const leafSize = leavesAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, size * 0.2],
   });
   
-  // Flower size based on animation
   const flowerSize = flowerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, size * 0.15],
@@ -134,7 +120,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
       </View>
       
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Stem - using AnimatedPath instead of Animated.View + Path */}
         <AnimatedPath
           d={stemPath}
           stroke={stemColor}
@@ -142,7 +127,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
           strokeLinecap="round"
         />
         
-        {/* Left Leaves (only if streak >= 5) */}
         {hasLeaves && (
           <Animated.View style={{ opacity: leavesAnim, transform: [{ scale: leavesAnim }] }}>
             <G>
@@ -168,7 +152,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
           </Animated.View>
         )}
         
-        {/* Right Leaves (only if streak >= 5) */}
         {hasLeaves && (
           <Animated.View style={{ opacity: leavesAnim, transform: [{ scale: leavesAnim }] }}>
             <G>
@@ -194,7 +177,6 @@ const GrowingPlant: React.FC<GrowingPlantProps> = ({
           </Animated.View>
         )}
         
-        {/* Flowers (only if streak >= 15) */}
         {hasFlowers && (
           <Animated.View style={{ opacity: flowerAnim, transform: [{ scale: flowerAnim }] }}>
             <G>

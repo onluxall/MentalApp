@@ -21,7 +21,6 @@ const SplashScreen = ({ navigation }: Props) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Start the animation sequence
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -37,25 +36,20 @@ const SplashScreen = ({ navigation }: Props) => {
       }),
     ]).start();
 
-    // Check if user has completed assessment before
     const checkUserStatus = async () => {
       try {
-        // In a real app, you would check AsyncStorage or an API
         const hasCompletedAssessment = await AsyncStorage.getItem('hasCompletedAssessment');
         
         setTimeout(() => {
           if (hasCompletedAssessment === 'true') {
-            // User has completed assessment, go directly to Main
             navigation.replace('Main');
           } else {
-            // First-time user, go to Login
             navigation.replace('Login');
           }
           setIsLoading(false);
         }, 2000);
       } catch (error) {
         console.error('Error checking user status:', error);
-        // Default to Login on error
         setTimeout(() => {
           navigation.replace('Login');
           setIsLoading(false);
