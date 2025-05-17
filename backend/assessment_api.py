@@ -609,8 +609,14 @@ def check_streak_status(user_id: str, progress: UserProgress) -> None:
     
     # Only update status messages, not the streak count
     if all_completed:
-        progress.streak_status = "increased"
-        progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+        if progress.current_streak > 0:
+            # Only set to increased if we already have a streak
+            progress.streak_status = "increased"
+            progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+        else:
+            # First day of streak
+            progress.streak_status = "no_streak"
+            progress.streak_message = "Great job! Complete all tasks tomorrow to start a streak! 🎯"
     else:
         if progress.current_streak > 0:
             progress.streak_status = "decreased"

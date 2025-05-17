@@ -743,7 +743,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   progressCardNoStreak: {
-    backgroundColor: '#fafafa',
+    backgroundColor: '#ffffff',
+    borderColor: '#e0e0e0',
+    borderWidth: 1,
   },
   sectionTitle: {
     fontSize: 20,
