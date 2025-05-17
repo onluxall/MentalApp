@@ -19,6 +19,7 @@ type RootStackParamList = {
   Onboarding: undefined;
   Assessment: undefined;
   Home: { selectedTasks: number[] };
+  Main: undefined;
 };
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -152,7 +153,16 @@ const LoginScreen = ({ navigation }: Props) => {
           {/* Demo button for quick access */}
           <TouchableOpacity
             style={styles.demoButton}
-            onPress={() => navigation.navigate('Onboarding')}
+            onPress={() => {
+              // For new users, go to onboarding
+              const isNewUser = true; // This would be determined by your app's logic
+              if (isNewUser) {
+                navigation.navigate('Onboarding');
+              } else {
+                // For returning users, go directly to Main
+                navigation.navigate('Main');
+              }
+            }}
           >
             <Text style={styles.demoButtonText}>Continue as Demo User</Text>
           </TouchableOpacity>

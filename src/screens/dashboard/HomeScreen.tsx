@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
+import StreakCalendar from '../../components/streaks/StreakCalendar';
+import DigitalWellnessHeader from '../../components/header/DigitalWellnessHeader';
+import DateTransitionService from '../../services/DateTransitionService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 //BACKEND TEAM: The home screen needs these endpoints:
 //- GET /api/tasks/user - To fetch user's current tasks
@@ -109,6 +113,8 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const [taskAnimations] = useState<{[key: number]: Animated.Value}>({});
   const [cardAnim] = useState(new Animated.Value(1));
   const [taskScaleAnim] = useState<{[key: number]: Animated.Value}>({});
+  const [showStreakCalendar, setShowStreakCalendar] = useState(false);
+  const [completedDays, setCompletedDays] = useState<Date[]>([]);
   
   // Fetch tasks and progress on component mount
   useEffect(() => {
@@ -217,7 +223,20 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   //random quote
   const randomQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   
-  // Update toggleTaskCompletion to handle the response
+  // Add useEffect to fetch completed days - simulated for now
+  useEffect(() => {
+    // In a real app, this would be fetched from the server
+    const simulatedCompletedDays = [
+      new Date(today.getTime() - (24 * 60 * 60 * 1000)), // yesterday
+      new Date(today.getTime() - (3 * 24 * 60 * 60 * 1000)), // 3 days ago
+      new Date(today.getTime() - (4 * 24 * 60 * 60 * 1000)), // 4 days ago
+      new Date(today.getTime() - (5 * 24 * 60 * 60 * 1000)), // 5 days ago
+      new Date(today.getTime() - (9 * 24 * 60 * 60 * 1000)), // 9 days ago
+    ];
+    setCompletedDays(simulatedCompletedDays);
+  }, []);
+
+  // Modify toggleTaskCompletion to check if all tasks are completed
   const toggleTaskCompletion = async (taskId: number) => {
     try {
       const user_id = 'user_123';
@@ -245,31 +264,24 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
               : task
           )
         );
-
-        // Animate changes
-        requestAnimationFrame(() => {
-          // Animate task progress
-          if (taskAnimations[taskId]) {
-            Animated.timing(taskAnimations[taskId], {
-              toValue: response.data.task.status === 'completed' ? 1 : 0,
-              duration: 300,
-              useNativeDriver: false,
-              easing: Easing.out(Easing.ease),
-            }).start();
-          }
-
-          // Animate overall progress
-          Animated.timing(progressAnim, {
-            toValue: progress.today_completed / progress.today_total,
-            duration: 300,
-            useNativeDriver: false,
-            easing: Easing.out(Easing.ease),
-          }).start();
-        });
+        
+        // Check if all tasks are completed to show streak calendar
+        if (progress.all_tasks_completed_today && progress.streak_status !== "decreased") {
+          // Add today to completed days if not already added
+          setCompletedDays(prev => {
+            const today = new Date();
+            const alreadyAdded = prev.some(date => date.toDateString() === today.toDateString());
+            return alreadyAdded ? prev : [...prev, today];
+          });
+          
+          // Show streak calendar with slight delay
+          setTimeout(() => {
+            setShowStreakCalendar(true);
+          }, 500);
+        }
       }
     } catch (error) {
-      console.error('Error completing task:', error);
-      setError('Failed to update task. Please try again.');
+      console.error('Failed to update task status:', error);
     }
   };
 
@@ -302,13 +314,29 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     setNoteError(null);
 
     try {
-      await axios.post('http://localhost:8000/api/notes/daily', {
+      // Check if user already submitted a note today
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const lastNoteDate = await AsyncStorage.getItem('@MindFlow:lastNoteDate');
+      const noteSubmitted = await AsyncStorage.getItem('@MindFlow:dailyNoteSubmitted');
+      
+      if (lastNoteDate === today && noteSubmitted === 'true') {
+        setNoteError('You can only create one note per day');
+        setIsSubmittingNote(false);
+        return;
+      }
+
+      // Submit the note
+      const response = await axios.post('http://localhost:8000/api/notes/daily', {
         user_id: 'user_123', // TODO: Replace with actual user ID
         message: dailyNote.trim(),
         category: noteCategory,
         mood: noteMood,
         is_public: true
       });
+
+      // Mark as submitted for today
+      await AsyncStorage.setItem('@MindFlow:dailyNoteSubmitted', 'true');
+      await AsyncStorage.setItem('@MindFlow:lastNoteDate', today);
 
       setDailyNote('');
       setShowNoteModal(false);
@@ -323,15 +351,36 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
       setIsSubmittingNote(false);
     }
   };
+
+  // Check for date transition when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Check if we need to handle a date transition
+      const checkDateTransition = async () => {
+        try {
+          const didTransition = await DateTransitionService.checkDateTransition();
+          if (didTransition) {
+            // If there was a date transition, refresh user data
+            await fetchUserData();
+          }
+        } catch (error) {
+          console.error('Error checking date transition:', error);
+        }
+      };
+      
+      checkDateTransition();
+    }, [])
+  );
   
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.date}>{formattedDate}</Text>
-          </View>
+          <DigitalWellnessHeader 
+            userName="Alex"
+            streakCount={streakInfo.current_streak}
+            taskCompletion={streakInfo.today_total > 0 ? Math.round(streakInfo.today_completed / streakInfo.today_total * 100) : 0}
+          />
           
           {/* Progress Card with Streak */}
           <View style={[
@@ -530,20 +579,12 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
             )}
           </View>
 
-          <View style={styles.quoteCard}>
-            <Text style={styles.quoteText}>
-              "{randomQuote.text}"
-            </Text>
-            <Text style={styles.quoteAuthor}>- {randomQuote.author}</Text>
-          </View>
-
-          {/*For demo purposes, a button to go back to start */}
-          <TouchableOpacity 
-            style={styles.restartButton}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.restartButtonText}>Restart Demo</Text>
-          </TouchableOpacity>
+          <StreakCalendar
+            visible={showStreakCalendar}
+            onClose={() => setShowStreakCalendar(false)}
+            currentStreak={streakInfo.current_streak}
+            completedDays={completedDays}
+          />
 
           {/* Note Creation Modal */}
           <Modal
@@ -645,6 +686,12 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
           </Modal>
         </View>
       </ScrollView>
+      <StreakCalendar
+        visible={showStreakCalendar}
+        onClose={() => setShowStreakCalendar(false)}
+        currentStreak={streakInfo.current_streak}
+        completedDays={completedDays}
+      />
     </SafeAreaView>
   );
 };
@@ -940,6 +987,7 @@ const styles = StyleSheet.create({
   dailyNoteSection: {
     marginTop: 20,
     marginHorizontal: 20,
+    marginBottom: 30,
   },
   sectionHeader: {
     flexDirection: 'row',

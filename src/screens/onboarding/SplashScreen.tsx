@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
+  Main: undefined;
 };
 
 type SplashScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Splash'>;
@@ -16,6 +18,7 @@ type Props = {
 const SplashScreen = ({ navigation }: Props) => {
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Start the animation sequence
@@ -34,12 +37,33 @@ const SplashScreen = ({ navigation }: Props) => {
       }),
     ]).start();
 
-    // Navigate to Login screen after animation
-    const timer = setTimeout(() => {
-      navigation.replace('Login');
-    }, 2000);
+    // Check if user has completed assessment before
+    const checkUserStatus = async () => {
+      try {
+        // In a real app, you would check AsyncStorage or an API
+        const hasCompletedAssessment = await AsyncStorage.getItem('hasCompletedAssessment');
+        
+        setTimeout(() => {
+          if (hasCompletedAssessment === 'true') {
+            // User has completed assessment, go directly to Main
+            navigation.replace('Main');
+          } else {
+            // First-time user, go to Login
+            navigation.replace('Login');
+          }
+          setIsLoading(false);
+        }, 2000);
+      } catch (error) {
+        console.error('Error checking user status:', error);
+        // Default to Login on error
+        setTimeout(() => {
+          navigation.replace('Login');
+          setIsLoading(false);
+        }, 2000);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    checkUserStatus();
   }, []);
 
   return (

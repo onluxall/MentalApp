@@ -18,6 +18,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Achievement definitions
+ACHIEVEMENTS = {
+    "streak_5": {"id": "streak_5", "text": "5-day streak", "type": "streak", "threshold": 5, "icon": "🔥"},
+    "streak_7": {"id": "streak_7", "text": "7-day streak", "type": "streak", "threshold": 7, "icon": "🔥"},
+    "streak_14": {"id": "streak_14", "text": "14-day streak", "type": "streak", "threshold": 14, "icon": "🔥"},
+    "streak_30": {"id": "streak_30", "text": "30-day streak", "type": "streak", "threshold": 30, "icon": "🔥"},
+    "tasks_10": {"id": "tasks_10", "text": "Completed 10 tasks", "type": "tasks", "threshold": 10, "icon": "✅"},
+    "tasks_25": {"id": "tasks_25", "text": "Completed 25 tasks", "type": "tasks", "threshold": 25, "icon": "✅"},
+    "tasks_50": {"id": "tasks_50", "text": "Completed 50 tasks", "type": "tasks", "threshold": 50, "icon": "✅"},
+    "tasks_100": {"id": "tasks_100", "text": "Completed 100 tasks", "type": "tasks", "threshold": 100, "icon": "✅"},
+    "notes_3": {"id": "notes_3", "text": "Shared 3 notes", "type": "notes", "threshold": 3, "icon": "📝"},
+    "notes_10": {"id": "notes_10", "text": "Shared 10 notes", "type": "notes", "threshold": 10, "icon": "📝"},
+}
+
 # Data Models
 class AssessmentQuestion(BaseModel):
     id: int
@@ -72,6 +86,15 @@ class UserTask(BaseModel):
     energy_level: int = 3  # 1-5 scale
     steps: List[str] = []  # List of actionable steps
 
+class UserAchievement(BaseModel):
+    id: str  # Achievement ID
+    text: str  # Display text
+    type: str  # Type of achievement (streak, tasks, notes)
+    threshold: int  # Value needed to unlock
+    icon: str  # Emoji icon
+    completed: bool = False  # Whether completed
+    completion_date: Optional[str] = None  # When achieved
+
 class UserProgress(BaseModel):
     user_id: str
     current_streak: int = 0
@@ -84,6 +107,8 @@ class UserProgress(BaseModel):
     today_completed: int = 0
     today_total: int = 0
     all_tasks_completed_today: bool = False  # New field to track if all tasks are done for today
+    notes_shared: int = 0  # Count of notes shared
+    achievements: Dict[str, UserAchievement] = {}  # User achievements
 
 class MotivationalQuote(BaseModel):
     quote: str
@@ -745,6 +770,7 @@ async def complete_task(user_id: str, task_id: int):
         # Mark as pending
         task.status = TaskStatus.PENDING
         task.completed_at = None
+        
         # Update progress
         progress.total_tasks_completed -= 1
         progress.categories_completed[task.category] = max(0, progress.categories_completed.get(task.category, 0) - 1)
@@ -763,6 +789,7 @@ async def complete_task(user_id: str, task_id: int):
         # Mark as completed
         task.status = TaskStatus.COMPLETED
         task.completed_at = datetime.now().isoformat()
+        
         # Update progress
         progress.total_tasks_completed += 1
         progress.categories_completed[task.category] = progress.categories_completed.get(task.category, 0) + 1
@@ -773,36 +800,51 @@ async def complete_task(user_id: str, task_id: int):
     progress.all_tasks_completed_today = all_tasks_completed_after
     
     # Update streak only if all tasks are completed
-    if all_tasks_completed_after and not all_tasks_completed_before:
-        # This is the first time all tasks are completed today
-        if progress.last_completion_date:
-            last_date = datetime.fromisoformat(progress.last_completion_date).date()
-            if (today - last_date).days == 1:
-                # Consecutive day - increase streak
-                progress.current_streak += 1
-                progress.streak_status = "increased"
-                progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
-            elif (today - last_date).days > 1:
-                # Streak broken - start new streak
+    if all_tasks_completed_after:
+        # If all tasks are now completed
+        if not all_tasks_completed_before:
+            # This is the first time all tasks are completed today
+            if progress.last_completion_date:
+                last_date = datetime.fromisoformat(progress.last_completion_date).date()
+                if (today - last_date).days == 1:
+                    # Consecutive day - increase streak
+                    progress.current_streak += 1
+                    progress.streak_status = "increased"
+                    progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+                elif (today - last_date).days > 1:
+                    # Streak broken - start new streak
+                    progress.current_streak = 1
+                    progress.streak_status = "new_streak"
+                    progress.streak_message = "New streak started! Keep it going! 🎯"
+            else:
+                # First ever completion - start streak
                 progress.current_streak = 1
                 progress.streak_status = "new_streak"
-                progress.streak_message = "New streak started! Keep it going! 🎯"
+                progress.streak_message = "First streak started! Keep it going! 🎯"
+            
+            # Update longest streak if needed
+            if progress.current_streak > progress.longest_streak:
+                progress.longest_streak = progress.current_streak
         else:
-            # First ever completion - start streak
+            # All tasks were completed before and are still completed
+            progress.streak_status = "maintained"
+            progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+        
+        # Always update the streak if we were at 0 and all tasks are now completed
+        if progress.current_streak == 0:
             progress.current_streak = 1
             progress.streak_status = "new_streak"
-            progress.streak_message = "First streak started! Keep it going! 🎯"
+            progress.streak_message = "New streak started! Keep it going! 🎯"
         
-        # Update longest streak if needed
-        if progress.current_streak > progress.longest_streak:
-            progress.longest_streak = progress.current_streak
-        
-        # Update last completion date
+        # Always update the last completion date when all tasks are completed
         progress.last_completion_date = datetime.now().isoformat()
     
     # Update today's total if not set
     if progress.today_total == 0:
         progress.today_total = len(today_tasks)
+    
+    # Check for achievements
+    newly_unlocked_achievements = check_achievements(user_id, progress)
     
     return {
         "task": task,
@@ -814,7 +856,8 @@ async def complete_task(user_id: str, task_id: int):
             "today_completed": progress.today_completed,
             "today_total": progress.today_total,
             "all_tasks_completed_today": progress.all_tasks_completed_today
-        }
+        },
+        "newly_unlocked_achievements": newly_unlocked_achievements
     }
 
 @app.get("/api/quotes")
@@ -1001,10 +1044,21 @@ async def create_daily_note(note_request: CreateNoteRequest):
     # Update daily count
     user_daily_note_count[note_request.user_id][today] = 1
     
+    # Update user progress for achievements
+    if note_request.user_id not in user_progress:
+        user_progress[note_request.user_id] = UserProgress(user_id=note_request.user_id)
+    
+    progress = user_progress[note_request.user_id]
+    progress.notes_shared += 1
+    
+    # Check for new achievements
+    newly_unlocked = check_achievements(note_request.user_id, progress)
+    
     return {
         "note": note,
         "message": "Note created successfully",
-        "status": "success"
+        "status": "success",
+        "newly_unlocked_achievements": newly_unlocked
     }
 
 @app.get("/api/notes/random")
@@ -1284,6 +1338,216 @@ async def reset_user_progress(user_id: str):
         "status": "success",
         "message": "Progress reset successfully",
         "progress": user_progress[user_id]
+    }
+
+@app.post("/api/tasks/{user_id}/refresh-day")
+async def refresh_day_for_user(user_id: str):
+    """
+    Handle the day transition for a user. This endpoint will:
+    1. Update user streak information
+    2. Reset daily task completion status
+    3. Set up today's tasks
+    """
+    # Check if user exists
+    if user_id not in user_progress:
+        user_progress[user_id] = UserProgress(user_id=user_id)
+
+    # If user has no tasks, there's nothing to refresh
+    if user_id not in user_tasks:
+        return {"status": "success", "message": "No tasks to refresh"}
+
+    # Get current progress
+    progress = user_progress[user_id]
+    today_date = date.today().isoformat()
+    
+    # Check if we need to update streaks
+    if progress.last_completion_date:
+        last_date = date.fromisoformat(progress.last_completion_date)
+        today = date.today()
+        
+        # If last completion was yesterday, continue the streak (if tasks were completed)
+        if (today - last_date).days == 1 and progress.all_tasks_completed_today:
+            # The streak continues - no action needed
+            pass
+        # If last completion was today, do nothing (already counted)
+        elif (today - last_date).days == 0:
+            # Already counted today, nothing to do
+            pass
+        # If more than 1 day passed, reset the streak
+        elif (today - last_date).days > 1:
+            # Reset streak as more than a day was missed
+            progress.current_streak = 0
+            progress.streak_status = "reset"
+            progress.streak_message = "Streak reset! Complete all tasks today to start again."
+    
+    # Reset the daily completion tracking
+    progress.today_completed = 0
+    progress.all_tasks_completed_today = False
+    
+    # Update task statuses - reset any incomplete tasks
+    for task in user_tasks[user_id]:
+        if task.status != TaskStatus.COMPLETED:
+            task.status = TaskStatus.PENDING
+    
+    # Save changes to progress
+    user_progress[user_id] = progress
+    
+    # Count today's tasks
+    progress.today_total = len(user_tasks[user_id])
+    
+    # Prepare response
+    response = {
+        "status": "success", 
+        "message": "Day refreshed successfully",
+        "progress": progress
+    }
+    
+    return response
+
+def check_streak_status(user_id: str, progress: UserProgress) -> None:
+    """
+    Check and update the streak status message based on current progress.
+    Does not modify the streak count, only updates status message.
+    """
+    # Always set a consistent message based on streak count and task completion
+    if progress.all_tasks_completed_today:
+        # All tasks are completed today, so show a positive streak message
+        if progress.current_streak > 0:
+            progress.streak_status = "maintained"
+            progress.streak_message = f"🔥 {progress.current_streak} day streak! Keep it up!"
+        else:
+            # This shouldn't happen normally, but handle it just in case
+            progress.streak_status = "new_streak"
+            progress.streak_message = "First streak started! Keep it going! 🎯"
+    else:
+        # Not all tasks are completed
+        if progress.current_streak > 0:
+            progress.streak_status = "at_risk"
+            progress.streak_message = f"Complete today's tasks to maintain your {progress.current_streak} day streak!"
+        else:
+            progress.streak_status = "no_streak"
+            progress.streak_message = "Complete all tasks today to start a streak!"
+
+# Add this function after the check_streak_status function
+def check_achievements(user_id: str, progress: UserProgress) -> List[str]:
+    """
+    Check and update user achievements based on progress.
+    Returns list of newly unlocked achievements.
+    """
+    if not user_id or user_id not in user_progress:
+        return []
+    
+    # Make sure progress has achievements initialized
+    if not hasattr(progress, 'achievements'):
+        progress.achievements = {}
+    
+    newly_unlocked = []
+    
+    # Initialize achievements if they don't exist
+    for achievement_id, achievement_data in ACHIEVEMENTS.items():
+        if achievement_id not in progress.achievements:
+            progress.achievements[achievement_id] = UserAchievement(
+                id=achievement_data["id"],
+                text=achievement_data["text"],
+                type=achievement_data["type"],
+                threshold=achievement_data["threshold"],
+                icon=achievement_data["icon"],
+                completed=False
+            )
+    
+    # Check streak achievements
+    if progress.current_streak > 0:
+        for achievement_id, achievement_data in ACHIEVEMENTS.items():
+            if achievement_data["type"] == "streak" and progress.current_streak >= achievement_data["threshold"]:
+                if not progress.achievements[achievement_id].completed:
+                    progress.achievements[achievement_id].completed = True
+                    progress.achievements[achievement_id].completion_date = datetime.now().isoformat()
+                    newly_unlocked.append(achievement_id)
+    
+    # Check task achievements
+    if progress.total_tasks_completed > 0:
+        for achievement_id, achievement_data in ACHIEVEMENTS.items():
+            if achievement_data["type"] == "tasks" and progress.total_tasks_completed >= achievement_data["threshold"]:
+                if not progress.achievements[achievement_id].completed:
+                    progress.achievements[achievement_id].completed = True
+                    progress.achievements[achievement_id].completion_date = datetime.now().isoformat()
+                    newly_unlocked.append(achievement_id)
+    
+    # Check note achievements
+    if progress.notes_shared > 0:
+        for achievement_id, achievement_data in ACHIEVEMENTS.items():
+            if achievement_data["type"] == "notes" and progress.notes_shared >= achievement_data["threshold"]:
+                if not progress.achievements[achievement_id].completed:
+                    progress.achievements[achievement_id].completed = True
+                    progress.achievements[achievement_id].completion_date = datetime.now().isoformat()
+                    newly_unlocked.append(achievement_id)
+    
+    return newly_unlocked
+
+@app.get("/api/achievements/{user_id}")
+async def get_user_achievements(user_id: str):
+    """
+    Get a user's achievements.
+    
+    Args:
+        user_id (str): The ID of the user
+        
+    Returns:
+        dict: User's achievements info
+    """
+    # Initialize progress if needed
+    if user_id not in user_progress:
+        user_progress[user_id] = UserProgress(user_id=user_id)
+    
+    progress = user_progress[user_id]
+    
+    # Make sure achievements are initialized
+    if not hasattr(progress, 'achievements') or not progress.achievements:
+        # Initialize achievements
+        progress.achievements = {}
+        for achievement_id, achievement_data in ACHIEVEMENTS.items():
+            progress.achievements[achievement_id] = UserAchievement(
+                id=achievement_data["id"],
+                text=achievement_data["text"],
+                type=achievement_data["type"],
+                threshold=achievement_data["threshold"],
+                icon=achievement_data["icon"],
+                completed=False
+            )
+    
+    # Check for any newly completed achievements
+    check_achievements(user_id, progress)
+    
+    # Convert achievements to a list for the response
+    achievements_list = []
+    for achievement_id, achievement in progress.achievements.items():
+        achievements_list.append({
+            "id": achievement.id,
+            "text": achievement.text,
+            "type": achievement.type,
+            "threshold": achievement.threshold,
+            "icon": achievement.icon,
+            "completed": achievement.completed,
+            "completion_date": achievement.completion_date
+        })
+    
+    # Group achievements by type
+    achievements_by_type = {
+        "streak": [],
+        "tasks": [],
+        "notes": []
+    }
+    
+    for achievement in achievements_list:
+        if achievement["type"] in achievements_by_type:
+            achievements_by_type[achievement["type"]].append(achievement)
+    
+    return {
+        "user_id": user_id,
+        "achievements": achievements_list,
+        "by_type": achievements_by_type,
+        "total_completed": sum(1 for a in achievements_list if a["completed"]),
+        "total_available": len(achievements_list)
     }
 
 if __name__ == "__main__":

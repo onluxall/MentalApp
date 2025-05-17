@@ -9,6 +9,7 @@ import axios from 'axios';
 type RootStackParamList = {
   TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[], userStruggleText?: string };
   Home: { selectedTasks: number[], progress: number };
+  Main: undefined;
 };
 
 type TaskSelectionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TaskSelection'>;
@@ -818,11 +819,8 @@ const TaskSelectionScreen: React.FC<Props> = ({ navigation, route }) => {
         }
       );
 
-      // Navigate to Home screen with the selected tasks
-      navigation.navigate('Home', { 
-        selectedTasks,
-        progress: response.data.progress // Pass progress from backend
-      });
+      // Navigate to Main screen with the TabNavigator
+      navigation.navigate('Main');
     } catch (err) {
       console.error('Error saving selected tasks:', err);
       setError('Failed to save your selected tasks. Please try again.');

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { assessmentApi, TaskRecommendation } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
+import { assessmentApi, TaskRecommendation } from '../../services/api';
 
 //BACKEND TEAM: The evaluation screen needs:
 //- POST /api/assessment/{user_id}/struggle - To submit user's struggle description
@@ -34,6 +36,7 @@ import { Audio } from 'expo-av';
 type RootStackParamList = {
   Evaluation: { answers: { [key: number]: number } };
   TaskSelection: { selectedCategories: string[], recommendations: TaskRecommendation[], userStruggleText?: string };
+  Main: undefined;
 };
 
 type EvaluationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Evaluation'>;
@@ -354,54 +357,31 @@ const EvaluationScreen: React.FC<Props> = ({ navigation, route }) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  //UPDATED: Modified to include the struggle text
-  const handleContinue = () => {
-  // If the user has entered struggle text and we have a connection to the backend
-  if (userStruggleText.trim() !== '') {
-    //here we would normally call this API, but for now we can comment it out
-    //to avoid errors if the backend isn't implemented yet
-    /*
+  const handleContinue = async () => {
+    if (selectedCategories.length === 0) {
+      // No categories selected, show error or use default categories
+      setSelectedCategories(['habits', 'discipline', 'mindset']);
+    }
+    
+    // Save that user has completed assessment
     try {
-      const user_id = 'user_123'; //In a real app, get this from authentication
-      assessmentApi.submitStruggleDescription(user_id, userStruggleText)
-        .then(response => {
-          //If successful, use the recommendations
-          setRecommendations(response.recommendations);
-          //Then navigate
-          navigation.navigate('TaskSelection', { 
-            selectedCategories,
-            recommendations: response.recommendations,
-            userStruggleText
-          });
-        })
-        .catch(error => {
-          console.error('Error submitting struggle text:', error);
-          //On error, still navigate but with existing recommendations
-          navigation.navigate('TaskSelection', { 
-            selectedCategories,
-            recommendations,
-            userStruggleText
-          });
-        });
+      await AsyncStorage.setItem('hasCompletedAssessment', 'true');
     } catch (error) {
-      console.error('Error in API call:', error);
-      //Fall back to regular navigation
-      navigation.navigate('TaskSelection', { 
+      console.error('Error saving assessment status:', error);
+    }
+    
+    // If user has selected categories, go to task selection
+    if (selectedCategories.length > 0) {
+      navigation.navigate('TaskSelection', {
         selectedCategories,
         recommendations,
         userStruggleText
       });
+    } else {
+      // If for some reason we still don't have categories, go to main screen
+      navigation.navigate('Main');
     }
-    */
-  }
-  
-  //For now, just navigate with the current data
-  navigation.navigate('TaskSelection', { 
-    selectedCategories,
-    recommendations,
-    userStruggleText
-  });
-};
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
