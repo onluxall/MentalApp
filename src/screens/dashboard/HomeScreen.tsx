@@ -14,6 +14,10 @@ type RootStackParamList = {
   Home: { selectedTasks: number[] };
   Login: undefined;
   TaskDetail: { taskId: number };
+  TaskSelection: undefined;
+  Assessment: undefined;
+  Onboarding: undefined;
+  Splash: undefined;
 };
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
@@ -58,6 +62,7 @@ type StreakInfo = {
   streak_message: string;
   today_completed: number;
   today_total: number;
+  all_tasks_completed_today: boolean;
 };
 
 type CompletionStatus = {
@@ -84,7 +89,8 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     streak_status: 'no_streak',
     streak_message: 'Complete all tasks today to start a streak!',
     today_completed: 0,
-    today_total: 0
+    today_total: 0,
+    all_tasks_completed_today: false
   });
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus>({
     total_tasks: 0,
@@ -106,40 +112,69 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   
   // Fetch tasks and progress on component mount
   useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  // Separate effect for updating tasks when streak changes
-  useEffect(() => {
-    const updateTasks = async () => {
+    const initializeData = async () => {
       try {
-        const user_id = 'user_123';
-        const tasksResponse = await axios.get<TaskResponse>(`http://localhost:8000/api/tasks/${user_id}`);
-        setTasks(tasksResponse.data.tasks);
-        setCompletionStatus(tasksResponse.data.completion_status);
+        // Only fetch user data, don't reset progress
+        await fetchUserData();
       } catch (error) {
-        console.error('Error updating tasks:', error);
+        console.error('Error initializing data:', error);
+        setError('Failed to load data. Please try again.');
       }
     };
-    updateTasks();
-  }, [streakInfo.current_streak]); // Only update when streak changes
+    
+    initializeData();
+  }, []);
 
+  // Add a cleanup effect to reset streak on unmount
+  useEffect(() => {
+    return () => {
+      // Reset streak info when component unmounts
+      setStreakInfo({
+        current_streak: 0,
+        longest_streak: 0,
+        streak_status: 'no_streak',
+        streak_message: 'Complete all tasks today to start a streak!',
+        today_completed: 0,
+        today_total: 0,
+        all_tasks_completed_today: false
+      });
+    };
+  }, []);
+
+  // Update fetchUserData to handle task display properly
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      const user_id = 'user_123'; // TODO: Replace with actual user ID
+      const user_id = 'user_123';
 
       // Fetch tasks and streak info
       const tasksResponse = await axios.get<TaskResponse>(`http://localhost:8000/api/tasks/${user_id}`);
-      setTasks(tasksResponse.data.tasks);
-      setStreakInfo(tasksResponse.data.streak_info);
-      setCompletionStatus(tasksResponse.data.completion_status);
+      
+      // Update streak info
+      const streakData = tasksResponse.data.streak_info;
+      setStreakInfo({
+        current_streak: streakData.current_streak || 0,
+        longest_streak: streakData.longest_streak || 0,
+        streak_status: streakData.streak_status || 'no_streak',
+        streak_message: streakData.streak_message || 'Complete all tasks today to start a streak!',
+        today_completed: streakData.today_completed || 0,
+        today_total: streakData.today_total || 0,
+        all_tasks_completed_today: streakData.all_tasks_completed_today || false
+      });
 
+      // Update tasks and completion status
+      if (tasksResponse.data.tasks && Array.isArray(tasksResponse.data.tasks)) {
+        setTasks(tasksResponse.data.tasks);
+        setCompletionStatus(tasksResponse.data.completion_status);
+      } else {
+        setError('Invalid task data received');
+      }
+      
       setLoading(false);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setError('Failed to load tasks. Please try again.');
+    } catch (error: any) {
+      setError(error.response?.data?.detail || 'Failed to load tasks. Please try again.');
       setLoading(false);
+      throw error;
     }
   };
 
@@ -154,12 +189,17 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Animate progress bar
   useEffect(() => {
+    const progressValue = streakInfo.today_total > 0 
+      ? streakInfo.today_completed / streakInfo.today_total 
+      : 0;
+      
     Animated.timing(progressAnim, {
-      toValue: streakInfo.today_completed / 3,
+      toValue: progressValue,
       duration: 300,
       useNativeDriver: false,
+      easing: Easing.out(Easing.ease),
     }).start();
-  }, [streakInfo.today_completed]);
+  }, [streakInfo.today_completed, streakInfo.today_total]);
 
   //get today's date
   const today = new Date();
@@ -177,56 +217,56 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   //random quote
   const randomQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   
-  // Handle task completion with animation
+  // Update toggleTaskCompletion to handle the response
   const toggleTaskCompletion = async (taskId: number) => {
     try {
       const user_id = 'user_123';
       const response = await axios.post(`http://localhost:8000/api/tasks/${user_id}/complete/${taskId}`);
       
-      // Get the new status and update counts immediately
-      const newStatus = response.data.task.status;
-      const currentCompleted = streakInfo.today_completed;
-      const newCompleted = newStatus === 'completed' 
-        ? currentCompleted + 1 
-        : currentCompleted - 1;
-
-      // Update streak info and counts immediately
       if (response.data.progress) {
-        setStreakInfo(prev => ({
-          ...response.data.progress,
-          today_completed: newCompleted, // Update count immediately
-          today_total: prev.today_total
-        }));
+        const progress = response.data.progress;
+        
+        // Update streak info with values from backend
+        setStreakInfo({
+          current_streak: progress.current_streak,
+          longest_streak: progress.longest_streak,
+          streak_status: progress.streak_status,
+          streak_message: progress.streak_message,
+          today_completed: progress.today_completed,
+          today_total: progress.today_total,
+          all_tasks_completed_today: progress.all_tasks_completed_today
+        });
+
+        // Update tasks
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.task_id === taskId 
+              ? { ...task, status: response.data.task.status }
+              : task
+          )
+        );
+
+        // Animate changes
+        requestAnimationFrame(() => {
+          // Animate task progress
+          if (taskAnimations[taskId]) {
+            Animated.timing(taskAnimations[taskId], {
+              toValue: response.data.task.status === 'completed' ? 1 : 0,
+              duration: 300,
+              useNativeDriver: false,
+              easing: Easing.out(Easing.ease),
+            }).start();
+          }
+
+          // Animate overall progress
+          Animated.timing(progressAnim, {
+            toValue: progress.today_completed / progress.today_total,
+            duration: 300,
+            useNativeDriver: false,
+            easing: Easing.out(Easing.ease),
+          }).start();
+        });
       }
-
-      // Update the task status
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.task_id === taskId 
-            ? { ...task, status: newStatus }
-            : task
-        )
-      );
-
-      // Start the animation after state updates
-      requestAnimationFrame(() => {
-        // Animate the task progress
-        Animated.timing(taskAnimations[taskId], {
-          toValue: newStatus === 'completed' ? 1 : 0,
-          duration: 300,
-          useNativeDriver: false,
-          easing: Easing.out(Easing.ease),
-        }).start();
-
-        // Animate the overall progress
-        Animated.timing(progressAnim, {
-          toValue: newCompleted / 3,
-          duration: 300,
-          useNativeDriver: false,
-          easing: Easing.out(Easing.ease),
-        }).start();
-      });
-
     } catch (error) {
       console.error('Error completing task:', error);
       setError('Failed to update task. Please try again.');
@@ -296,14 +336,20 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
           {/* Progress Card with Streak */}
           <View style={[
             styles.progressCard,
-            streakInfo.streak_status === 'increased' && styles.progressCardIncreased,
+            streakInfo.current_streak > 0 && styles.progressCardIncreased,
             streakInfo.streak_status === 'decreased' && styles.progressCardDecreased,
-            streakInfo.streak_status === 'no_streak' && styles.progressCardNoStreak
+            (streakInfo.streak_status === 'no_streak' || streakInfo.current_streak === 0) && styles.progressCardNoStreak
           ]}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Today's Progress</Text>
-              <View style={styles.streakBadge}>
-                <Text style={styles.streakBadgeText}>
+              <View style={[
+                styles.streakBadge,
+                streakInfo.current_streak > 0 && styles.streakBadgeActive
+              ]}>
+                <Text style={[
+                  styles.streakBadgeText,
+                  streakInfo.current_streak > 0 && styles.streakBadgeTextActive
+                ]}>
                   {streakInfo.current_streak} 🔥
                 </Text>
               </View>
@@ -314,7 +360,7 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
               <View style={styles.progressInfo}>
                 <View style={styles.progressCircle}>
                   <Text style={styles.progressCount}>
-                    {streakInfo.today_completed}/3
+                    {streakInfo.today_completed}/{streakInfo.today_total}
                   </Text>
                 </View>
                 <Text style={styles.progressLabel}>tasks completed</Text>
@@ -325,18 +371,15 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
                     style={[
                       styles.progress, 
                       { 
-                        width: progressAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0%', '100%']
-                        })
+                        width: `${(streakInfo.today_completed / streakInfo.today_total) * 100}%`
                       }
                     ]} 
                   />
                 </View>
                 <View style={styles.progressMarkers}>
-                  <View style={styles.progressMarker} />
-                  <View style={styles.progressMarker} />
-                  <View style={styles.progressMarker} />
+                  {[...Array(streakInfo.today_total)].map((_, i) => (
+                    <View key={i} style={styles.progressMarker} />
+                  ))}
                 </View>
               </View>
             </View>
@@ -371,61 +414,77 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           ) : tasks.length > 0 ? (
-            tasks.map((task) => (
-              <TouchableOpacity 
-                key={task.task_id} 
-                style={[
-                  styles.taskCard,
-                  task.status === 'completed' && styles.taskCardCompleted
-                ]}
-                onPress={() => toggleTaskCompletion(task.task_id)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.taskIconContainer}>
-                  <Text style={styles.taskIcon}>
-                    {task.category === 'habits' ? '🔄' : 
-                     task.category === 'emotions' ? '😌' : 
-                     task.category === 'productivity' ? '⏱️' : 
-                     task.category === 'discipline' ? '🎯' : 
-                     task.category === 'mindset' ? '🧠' : '📝'}
-                  </Text>
-                </View>
-                <View style={styles.taskContent}>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                  <Text style={styles.taskDescription}>{task.description}</Text>
-                  <View style={styles.taskMeta}>
-                    <Text style={styles.taskDifficulty}>Difficulty: {task.difficulty}</Text>
-                    <Text style={styles.taskDuration}>Duration: {task.estimated_duration}</Text>
-                  </View>
-                  <View style={styles.taskProgress}>
-                    <View style={styles.progressBar}>
-                      <Animated.View 
-                        style={[
-                          styles.progress, 
-                          { 
-                            width: taskAnimations[task.task_id]?.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ['0%', '100%']
-                            }) || '0%'
-                          }
-                        ]} 
-                      />
-                    </View>
-                    <Text style={styles.taskStatus}>
-                      {task.status === 'completed' ? 'Completed' : 'Not started'}
+            tasks.map((task) => {
+              return (
+                <TouchableOpacity 
+                  key={task.task_id} 
+                  style={[
+                    styles.taskCard,
+                    task.status === 'completed' && styles.taskCardCompleted
+                  ]}
+                  onPress={() => toggleTaskCompletion(task.task_id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.taskIconContainer}>
+                    <Text style={styles.taskIcon}>
+                      {task.category === 'habits' ? '🔄' : 
+                       task.category === 'emotions' ? '😌' : 
+                       task.category === 'productivity' ? '⏱️' : 
+                       task.category === 'discipline' ? '🎯' : 
+                       task.category === 'mindset' ? '🧠' : '📝'}
                     </Text>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))
+                  <View style={styles.taskContent}>
+                    <Text style={styles.taskTitle}>{task.title}</Text>
+                    <Text style={styles.taskDescription}>{task.description}</Text>
+                    <View style={styles.taskMeta}>
+                      <Text style={styles.taskDifficulty}>Difficulty: {task.difficulty}</Text>
+                      <Text style={styles.taskDuration}>Duration: {task.estimated_duration}</Text>
+                    </View>
+                    <View style={styles.taskProgress}>
+                      <View style={styles.progressBar}>
+                        <Animated.View 
+                          style={[
+                            styles.progress, 
+                            { 
+                              width: taskAnimations[task.task_id]?.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0%', '100%']
+                              }) || '0%'
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={styles.taskStatus}>
+                        {task.status === 'completed' ? 'Completed' : 'Not started'}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No tasks for today.</Text>
+              <Text style={styles.emptyStateText}>
+                {streakInfo.streak_message === "Please complete task selection to start your journey!"
+                  ? "You need to select your tasks first!"
+                  : "No tasks for today."}
+              </Text>
               <TouchableOpacity 
                 style={styles.button}
-                onPress={() => navigation.navigate('Login')}
+                onPress={() => {
+                  if (streakInfo.streak_message === "Please complete task selection to start your journey!") {
+                    navigation.navigate('TaskSelection');
+                  } else {
+                    navigation.navigate('Login');
+                  }
+                }}
               >
-                <Text style={styles.buttonText}>Start Assessment</Text>
+                <Text style={styles.buttonText}>
+                  {streakInfo.streak_message === "Please complete task selection to start your journey!"
+                    ? "Select Tasks"
+                    : "Start Assessment"}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -630,6 +689,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   progressHeader: {
     flexDirection: 'row',
@@ -643,14 +704,23 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   streakBadge: {
-    backgroundColor: '#f0e6ff',
+    backgroundColor: '#f5f5f5',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  streakBadgeActive: {
+    backgroundColor: '#f0e6ff',
+    borderColor: '#6200ee',
   },
   streakBadgeText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#666',
+  },
+  streakBadgeTextActive: {
     color: '#6200ee',
   },
   progressSection: {
@@ -735,17 +805,14 @@ const styles = StyleSheet.create({
   progressCardIncreased: {
     backgroundColor: '#f1f8e9',
     borderColor: '#4CAF50',
-    borderWidth: 2,
   },
   progressCardDecreased: {
     backgroundColor: '#fff8e1',
     borderColor: '#FFA000',
-    borderWidth: 2,
   },
   progressCardNoStreak: {
     backgroundColor: '#ffffff',
     borderColor: '#e0e0e0',
-    borderWidth: 1,
   },
   sectionTitle: {
     fontSize: 20,
