@@ -33,9 +33,9 @@ MindFlow is a mental wellness application designed to support users in maintaini
 <<<<<<< HEAD
 ## 📱 Screenshots
 
-![App Screenshot 1](assets/app1.png)
-![App Screenshot 2](assets/app2.png)
-![App Screenshot 3](assets/app3.png)
+<img src="assets/app1.png" alt="App Screenshot 1" width="200"/>
+<img src="assets/app2.png" alt="App Screenshot 2" width="200"/>
+<img src="assets/app3.png" alt="App Screenshot 3" width="200"/>
 
 ## 🚀 Getting Started
 
@@ -160,7 +160,7 @@ MindFlow is designed with user privacy as the highest priority:
 
 ## 📝 License
 
-This project was created for the MEET IT HACKATHON 2025 and is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgements
 
