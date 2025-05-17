@@ -172,7 +172,6 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
             <Ionicons name="phone-portrait-outline" size={18} color="#007AFF" />
             <Text style={styles.insightText}>{usageStats.screenTime}</Text>
           </View>
-          {renderBatteryLevel()}
         </View>
 
         <View style={styles.quoteContainer}>
@@ -246,37 +245,61 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
                             width: `${usageStats.focusScore}%`,
                             backgroundColor: getFocusScoreColor()
                           }
-                        ]} 
+                        ]}
                       />
                     </View>
-                    <Text style={[styles.wellnessValue, { color: getFocusScoreColor() }]}>
-                      {usageStats.focusScore}/100
+                    <Text style={[styles.progressText, { color: getFocusScoreColor() }]}>
+                      {usageStats.focusScore}
                     </Text>
                   </View>
                 </View>
               </View>
-              
-              {usageStats.batteryLevel !== undefined && Platform.OS !== 'web' && (
+
+              {Platform.OS !== 'web' && usageStats.batteryLevel !== undefined && (
                 <View style={styles.wellnessItem}>
                   <View style={[
                     styles.wellnessIconContainer, 
-                    { backgroundColor: 'rgba(76, 175, 80, 0.1)' }
+                    { backgroundColor: '#4CAF5020' }
                   ]}>
                     <Ionicons name="battery-half-outline" size={24} color="#4CAF50" />
                   </View>
                   <View style={styles.wellnessDetails}>
-                    <Text style={styles.wellnessLabel}>Battery Level</Text>
-                    <Text style={styles.wellnessValue}>{usageStats.batteryLevel}%</Text>
+                    <Text style={styles.wellnessLabel}>Battery</Text>
+                    <View style={styles.progressBarContainer}>
+                      <View style={styles.progressBar}>
+                        <View 
+                          style={[
+                            styles.progressFill, 
+                            { 
+                              width: `${usageStats.batteryLevel}%`,
+                              backgroundColor: '#4CAF50'
+                            }
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.progressText, { color: '#4CAF50' }]}>
+                        {usageStats.batteryLevel}%
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )}
             </View>
+
+            <View style={styles.wellnessTipContainer}>
+              <Ionicons name="information-circle-outline" size={20} color="#007AFF" />
+              <Text style={styles.wellnessTip}>
+                {usageStats.focusScore >= 80 
+                  ? "Great job maintaining your digital balance today!" 
+                  : "Try setting specific screen time goals to improve your focus."}
+              </Text>
+            </View>
             
             <TouchableOpacity 
-              style={styles.closeButton}
+              style={styles.modalCloseButton}
               onPress={() => toggleWellnessModal()}
             >
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text style={styles.modalCloseText}>Close</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </Animated.View>
@@ -287,48 +310,39 @@ const DigitalWellnessHeader: React.FC<DigitalWellnessHeaderProps> = ({
 
 const styles = StyleSheet.create({
   headerContainer: {
-    backgroundColor: '#6200ee',
-    paddingTop: 60,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    backgroundColor: '#ffffff',
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   greetingContainer: {
     flex: 1,
   },
   greeting: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333333',
   },
   date: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
+    color: '#666666',
+    marginTop: 2,
   },
   wellnessButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 5,
   },
   focusScoreCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -338,68 +352,69 @@ const styles = StyleSheet.create({
   },
   insightBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    marginTop: 15,
-    marginHorizontal: 20,
-    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
   },
   insightItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   insightDivider: {
-    height: '100%',
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    height: 20,
+    backgroundColor: '#e0e0e0',
   },
   insightText: {
-    color: 'white',
     fontSize: 13,
-    fontWeight: '500',
+    color: '#555',
+    marginLeft: 5,
   },
   quoteContainer: {
-    marginTop: 15,
-    marginHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-    padding: 12,
+    marginTop: 12,
+    paddingHorizontal: 5,
   },
   quoteText: {
-    color: 'white',
-    fontStyle: 'italic',
-    textAlign: 'center',
     fontSize: 14,
-    opacity: 0.9,
+    fontStyle: 'italic',
+    color: '#777777',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    width: '85%',
+    width: '90%',
+    maxWidth: 350,
     backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 15,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 10,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#6200ee',
-    marginBottom: 20,
+    color: '#333',
+    marginBottom: 15,
     textAlign: 'center',
   },
   wellnessSection: {
-    marginBottom: 20,
+    marginBottom: 15,
   },
   wellnessItem: {
     flexDirection: 'row',
@@ -407,9 +422,9 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   wellnessIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(0, 122, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -420,18 +435,17 @@ const styles = StyleSheet.create({
   },
   wellnessLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#555',
     marginBottom: 5,
   },
   wellnessValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
   },
   progressBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   progressBar: {
     flex: 1,
@@ -442,18 +456,34 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    borderRadius: 4,
   },
-  closeButton: {
-    alignSelf: 'center',
-    backgroundColor: '#6200ee',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-  },
-  closeButtonText: {
-    color: 'white',
+  progressText: {
+    marginLeft: 10,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  wellnessTipContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+  },
+  wellnessTip: {
+    flex: 1,
+    fontSize: 13,
+    color: '#333',
+    marginLeft: 8,
+  },
+  modalCloseButton: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    color: '#333',
     fontWeight: '600',
   },
 });

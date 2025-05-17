@@ -67,17 +67,12 @@ type StreakInfo = {
   all_tasks_completed_today: boolean;
 };
 
-type CompletionStatus = {
-  total_tasks: number;
-  completed_tasks: number;
-  completion_percentage: number;
-  all_completed: boolean;
-};
-
 type TaskResponse = {
   tasks: any[];
   streak_info: StreakInfo;
-  completion_status: CompletionStatus;
+  // Remove completion_status from TaskResponse type if backend also removes it
+  // For now, assuming backend still sends it, but frontend won't use it.
+  // completion_status: CompletionStatus;
 };
 
 const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
@@ -93,12 +88,6 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     today_completed: 0,
     today_total: 0,
     all_tasks_completed_today: false
-  });
-  const [completionStatus, setCompletionStatus] = useState<CompletionStatus>({
-    total_tasks: 0,
-    completed_tasks: 0,
-    completion_percentage: 0,
-    all_completed: false
   });
   const [dailyNote, setDailyNote] = useState<string>('');
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -161,7 +150,6 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
 
       if (tasksResponse.data.tasks && Array.isArray(tasksResponse.data.tasks)) {
         setTasks(tasksResponse.data.tasks);
-        setCompletionStatus(tasksResponse.data.completion_status);
       } else {
         setError('Invalid task data received');
       }
