@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 # MindSpace
+=======
+# MindFlow App
+Hackathon MEET IT
+>>>>>>> 8722283f1ee4297275966949dc32c69b5ae9b67f
 
 ![MindSpace Logo](assets/icon.png)
 
@@ -30,6 +35,7 @@ MindSpace is a mental wellness application designed to support users in maintain
 - **Data Storage:** On-device processing for sensitive data with MongoDB backend
 - **Authentication:** JWT-based secure authentication
 
+<<<<<<< HEAD
 ## 📱 Screenshots
 
 ![App Screenshot 1](assets/app1.png)
@@ -166,3 +172,53 @@ This project was created for the MEET IT HACKATHON 2025 and is licensed under th
 - MEET IT HACKATHON 2025 organizers
 - Our mentors and mentors
 - Open-source libraries and frameworks used in this project 
+=======
+### User
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "createdAt": "2025-05-16T12:00:00Z"
+}
+```
+
+### Assessment
+```json
+{
+  "id": "uuid",
+  "userId": "user_uuid",
+  "answers": {
+    "1": 4,
+    "2": 3,
+    //...more answers
+  },
+  "createdAt": "2025-05-16T12:00:00Z"
+}
+```
+
+### Task 
+```json
+{
+  "id": 1,
+  "category": "Routine",
+  "title": "Morning Routine Builder",
+  "description": "Create a consistent morning routine to start your day with purpose.",
+  "duration": "15 minutes",
+  "steps": ["Step 1", "Step 2", "..."],
+  "tips": ["Tip 1", "Tip 2", "..."]
+}
+```
+
+### UserTask
+```json
+{
+  "id": "uuid",
+  "userId": "user_uuid",
+  "taskId": 1,
+  "status": "in_progress", //or "completed"
+  "completedAt": null, //or timestamp
+  "createdAt": "2025-05-16T12:00:00Z"
+}
+```
+>>>>>>> 8722283f1ee4297275966949dc32c69b5ae9b67f
