@@ -119,7 +119,7 @@ const MindGardenScreen = () => {
           {loading ? (
             <Text style={styles.loadingText}>Loading achievements...</Text>
           ) : (
-            <View style={styles.achievementsContainer}>
+            <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalAchievementsContainer}>
               {achievements.length > 0 ? (
                 achievements.map((achievement) => (
                   <View 
@@ -139,7 +139,7 @@ const MindGardenScreen = () => {
                   Complete tasks and maintain streaks to earn achievements!
                 </Text>
               )}
-            </View>
+            </ScrollView>
           )}
           
           <View style={styles.infoContainer}>
@@ -213,32 +213,39 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   achievementsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    paddingHorizontal: 10,
     marginBottom: 30,
+    marginTop: 15,
+  },
+  horizontalAchievementsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 20,
   },
   achievementLeaf: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-    margin: 5,
-    minWidth: 100,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginHorizontal: 6,
+    marginVertical: 0,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   completedLeaf: {
-    backgroundColor: '#c8e6c9',
-    borderWidth: 1,
-    borderColor: '#81c784',
+    backgroundColor: '#e8f5e9',
   },
   incompleteLeaf: {
     backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
   achievementText: {
-    fontSize: 12,
-    color: '#333',
+    fontSize: 13,
+    color: '#444',
     textAlign: 'center',
   },
   noAchievementsText: {
