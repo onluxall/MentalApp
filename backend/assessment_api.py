@@ -519,8 +519,8 @@ async def get_user_tasks(user_id: str, status: Optional[TaskStatus] = None):
             last_date = datetime.fromisoformat(progress.last_completion_date).date()
             if last_date != today:
                 progress.current_streak = 0
-                progress.streak_status = "new_day"
-                progress.streak_message = "New day! Complete all tasks to start your streak! 🎯"
+                progress.streak_status = "no_streak"
+                progress.streak_message = "Complete all tasks today to start a streak!"
                 progress.last_completion_date = None
         else:
             # No last completion date, ensure streak is 0
@@ -600,8 +600,8 @@ def check_streak_status(user_id: str, progress: UserProgress) -> None:
         if last_date != today:
             # Reset streak to 0 for new day
             progress.current_streak = 0
-            progress.streak_status = "new_day"
-            progress.streak_message = "New day! Complete all tasks to start your streak! 🎯"
+            progress.streak_status = "no_streak"
+            progress.streak_message = "Complete all tasks today to start a streak!"
             progress.last_completion_date = None
     
     # Check if all tasks are completed
@@ -646,8 +646,8 @@ async def get_user_progress(user_id: str):
             last_date = datetime.fromisoformat(progress.last_completion_date).date()
             if last_date != today:
                 progress.current_streak = 0
-                progress.streak_status = "new_day"
-                progress.streak_message = "New day! Complete all tasks to start your streak! 🎯"
+                progress.streak_status = "no_streak"
+                progress.streak_message = "Complete all tasks today to start a streak!"
                 progress.last_completion_date = None
         else:
             # No last completion date, ensure streak is 0

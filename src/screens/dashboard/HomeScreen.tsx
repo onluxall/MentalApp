@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import axios from 'axios';
@@ -99,11 +99,30 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   const [noteMood, setNoteMood] = useState<string>('grateful');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [progressAnim] = useState(new Animated.Value(0));
+  const [taskAnimations] = useState<{[key: number]: Animated.Value}>({});
+  const [cardAnim] = useState(new Animated.Value(1));
+  const [taskScaleAnim] = useState<{[key: number]: Animated.Value}>({});
   
   // Fetch tasks and progress on component mount
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  // Separate effect for updating tasks when streak changes
+  useEffect(() => {
+    const updateTasks = async () => {
+      try {
+        const user_id = 'user_123';
+        const tasksResponse = await axios.get<TaskResponse>(`http://localhost:8000/api/tasks/${user_id}`);
+        setTasks(tasksResponse.data.tasks);
+        setCompletionStatus(tasksResponse.data.completion_status);
+      } catch (error) {
+        console.error('Error updating tasks:', error);
+      }
+    };
+    updateTasks();
+  }, [streakInfo.current_streak]); // Only update when streak changes
 
   const fetchUserData = async () => {
     try {
@@ -124,6 +143,24 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  // Initialize animation values for tasks
+  useEffect(() => {
+    tasks.forEach(task => {
+      if (!taskAnimations[task.task_id]) {
+        taskAnimations[task.task_id] = new Animated.Value(task.status === 'completed' ? 1 : 0);
+      }
+    });
+  }, [tasks]);
+
+  // Animate progress bar
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: streakInfo.today_completed / 3,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [streakInfo.today_completed]);
+
   //get today's date
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
@@ -140,37 +177,56 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
   //random quote
   const randomQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   
-  // Handle task completion
+  // Handle task completion with animation
   const toggleTaskCompletion = async (taskId: number) => {
     try {
-      const user_id = 'user_123'; // TODO: Replace with actual user ID
+      const user_id = 'user_123';
       const response = await axios.post(`http://localhost:8000/api/tasks/${user_id}/complete/${taskId}`);
       
-      // Update all states at once to prevent multiple re-renders
+      // Get the new status and update counts immediately
+      const newStatus = response.data.task.status;
+      const currentCompleted = streakInfo.today_completed;
+      const newCompleted = newStatus === 'completed' 
+        ? currentCompleted + 1 
+        : currentCompleted - 1;
+
+      // Update streak info and counts immediately
       if (response.data.progress) {
-        setStreakInfo({
-          current_streak: response.data.progress.current_streak,
-          longest_streak: response.data.progress.longest_streak,
-          streak_status: response.data.progress.streak_status,
-          streak_message: response.data.progress.streak_message,
-          today_completed: response.data.progress.today_completed,
-          today_total: response.data.progress.today_total
-        });
+        setStreakInfo(prev => ({
+          ...response.data.progress,
+          today_completed: newCompleted, // Update count immediately
+          today_total: prev.today_total
+        }));
       }
 
       // Update the task status
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.task_id === taskId 
-            ? { ...task, status: response.data.task.status }
+            ? { ...task, status: newStatus }
             : task
         )
       );
 
-      // Update completion status
-      if (response.data.completion_status) {
-        setCompletionStatus(response.data.completion_status);
-      }
+      // Start the animation after state updates
+      requestAnimationFrame(() => {
+        // Animate the task progress
+        Animated.timing(taskAnimations[taskId], {
+          toValue: newStatus === 'completed' ? 1 : 0,
+          duration: 300,
+          useNativeDriver: false,
+          easing: Easing.out(Easing.ease),
+        }).start();
+
+        // Animate the overall progress
+        Animated.timing(progressAnim, {
+          toValue: newCompleted / 3,
+          duration: 300,
+          useNativeDriver: false,
+          easing: Easing.out(Easing.ease),
+        }).start();
+      });
+
     } catch (error) {
       console.error('Error completing task:', error);
       setError('Failed to update task. Please try again.');
@@ -265,10 +321,15 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
               </View>
               <View style={styles.progressBarContainer}>
                 <View style={styles.progressBar}>
-                  <View 
+                  <Animated.View 
                     style={[
-                      styles.progressBarFill,
-                      { width: `${(streakInfo.today_completed / 3) * 100}%` }
+                      styles.progress, 
+                      { 
+                        width: progressAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%']
+                        })
+                      }
                     ]} 
                   />
                 </View>
@@ -318,6 +379,7 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
                   task.status === 'completed' && styles.taskCardCompleted
                 ]}
                 onPress={() => toggleTaskCompletion(task.task_id)}
+                activeOpacity={0.8}
               >
                 <View style={styles.taskIconContainer}>
                   <Text style={styles.taskIcon}>
@@ -337,10 +399,15 @@ const HomeScreen: React.FC<Props> = ({ navigation, route }) => {
                   </View>
                   <View style={styles.taskProgress}>
                     <View style={styles.progressBar}>
-                      <View 
+                      <Animated.View 
                         style={[
                           styles.progress, 
-                          { width: task.status === 'completed' ? '100%' : '0%' }
+                          { 
+                            width: taskAnimations[task.task_id]?.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0%', '100%']
+                            }) || '0%'
+                          }
                         ]} 
                       />
                     </View>
@@ -627,6 +694,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 4,
   },
+  progress: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 3,
+  },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#6200ee',
@@ -727,10 +799,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  progress: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 3,
+  taskMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  taskDifficulty: {
+    fontSize: 12,
+    color: '#888',
+  },
+  taskDuration: {
+    fontSize: 12,
+    color: '#888',
   },
   taskStatus: {
     fontSize: 12,
@@ -985,19 +1065,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  taskMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  taskDifficulty: {
-    fontSize: 12,
-    color: '#888',
-  },
-  taskDuration: {
-    fontSize: 12,
-    color: '#888',
   },
 });
 
