@@ -1,15 +1,10 @@
-<<<<<<< HEAD
-# MindSpace
-=======
-# MindFlow App
-Hackathon MEET IT
->>>>>>> 8722283f1ee4297275966949dc32c69b5ae9b67f
+# MindFlow
 
-![MindSpace Logo](assets/icon.png)
+![MindFlow Logo](assets/icon.png)
 
-## 🧠 About MindSpace
+## 🧠 About MindFlow
 
-MindSpace is a mental wellness application designed to support users in maintaining good mental health through subtle daily interventions. In today's fast-paced digital world where boundaries between work and rest are blurring, MindSpace provides a sanctuary for users to pause, breathe, and reconnect with themselves—transforming technology from part of the problem into part of the solution.
+MindFlow is a mental wellness application designed to support users in maintaining good mental health through subtle daily interventions. In today's fast-paced digital world where boundaries between work and rest are blurring, MindFlow provides a sanctuary for users to pause, breathe, and reconnect with themselves—transforming technology from part of the problem into part of the solution.
 
 ## 🏆 MEET IT HACKATHON 2025 Submission
 - **Team #2: "Cyfrowy Monety"**
@@ -56,8 +51,8 @@ MindSpace is a mental wellness application designed to support users in maintain
 
 1. Clone the repository
    ```
-   git clone https://github.com/cyrowy-monety/mindspace.git
-   cd mindspace
+   git clone https://github.com/cyrowy-monety/MindFlow.git
+   cd MindFlow
    ```
 
 2. Install frontend dependencies
@@ -95,7 +90,7 @@ MindSpace is a mental wellness application designed to support users in maintain
 ## 📊 Project Structure
 
 ```
-mindspace/
+MindFlow/
 ├── assets/                  # Images, fonts and other static assets
 ├── components/              # Reusable React components
 │   ├── assessment/          # Assessment sliders and evaluation components
@@ -141,7 +136,7 @@ mindspace/
 
 ## 🔒 Privacy and Security
 
-MindSpace is designed with user privacy as the highest priority:
+MindFlow is designed with user privacy as the highest priority:
 - On-device processing for sensitive data
 - Transparent data policies with user-friendly explanations
 - Complete user control over monitoring features
