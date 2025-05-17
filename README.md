@@ -1,6 +1,6 @@
 # MindFlow
 
-![MindFlow Logo](assets/icon.png)
+<img src="assets/icon.png" alt="MindFlow Logo" width="200"/>
 
 ## 🧠 About MindFlow
 
