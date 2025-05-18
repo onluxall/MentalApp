@@ -164,5 +164,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgements
 
 - MEET IT HACKATHON 2025 organizers
-- Our mentors and mentors
+- Our mentors
 - Open-source libraries and frameworks used in this project 
